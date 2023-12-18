@@ -190,6 +190,7 @@ def eval(setup: TrainingSetup, n_samples: int = -1):
     extra = None
     entropy_ds = []
     while True:
+        obs = {k: th.nan_to_num(v) for k, v in obs.items()}
         if collect_img:
             extra_right: List[List[str]] = [[] for _ in range(envs.num_envs)]
             if extra is not None and isinstance(extra, dict) and 'viz' in extra:

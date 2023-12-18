@@ -332,6 +332,7 @@ class SACMTAgent(Agent):
         for _ in range(self._num_updates):
             self._ups += 1
             batch = self._buffer.get_batch(self._bsz, device=mdevice)
+            batch = {k: th.nan_to_num(v) for k, v in batch.items()}
             obs = {k: batch[f'obs_{k}'] for k in self._obs_keys}
             obs_p = {k: batch[f'next_obs_{k}'] for k in self._obs_keys}
             reward = batch['reward']
