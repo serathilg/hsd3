@@ -22,6 +22,7 @@ from torch.optim import Optimizer
 
 from hucc import ReplayBuffer
 from hucc.agents import Agent
+from hucc.utils import broadcast_model
 
 log = logging.getLogger(__name__)
 
@@ -266,10 +267,8 @@ class SACMTAgent(Agent):
                 if self._n_updates > 0:
                     log.debug('Actor waiting for new params')
                     self.bcast_barrier.wait()
-                    for p in self._model.parameters():
-                        dist.broadcast(p, src=0)
-                    for p in self._target.parameters():
-                        dist.broadcast(p, src=0)
+                    broadcast_model(self._model, 0)
+                    broadcast_model(self._target, 0)
                     log.debug('Received')
                 self._n_updates += 1
             else:
@@ -277,10 +276,8 @@ class SACMTAgent(Agent):
                 if self.role == 'learner':
                     log.debug('Learned bcast new params')
                     self.bcast_barrier.wait()
-                    for p in self._model.parameters():
-                        dist.broadcast(p, src=0)
-                    for p in self._target.parameters():
-                        dist.broadcast(p, src=0)
+                    broadcast_model(self._model, 0)
+                    broadcast_model(self._target, 0)
                     log.debug('Okey-dokey')
             self._cur_rewards.clear()
             self._n_samples_since_update = 0

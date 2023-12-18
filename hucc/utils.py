@@ -17,6 +17,7 @@ import torch as th
 from omegaconf import DictConfig, OmegaConf
 from torch import nn
 from torch.optim import Optimizer
+import torch.distributed as dist
 
 log = logging.getLogger(__name__)
 
@@ -116,3 +117,16 @@ def sorted_nicely_sep(l, sep=','):
     for k in sorted(by_rank.keys()):
         ta_sorted += sorted_nicely(by_rank[k])
     return ta_sorted
+
+
+def broadcast_model(model: nn.Module, src_rank: int):
+    if dist.get_backend() == 'gloo':
+        # gloo backend needs detach (for gpu), https://github.com/pytorch/pytorch/issues/71049#issuecomment-1780188646
+        with th.no_grad():
+            for p in model.parameters():
+                p_copy = p.detach()
+                dist.broadcast(p_copy, src=src_rank)
+                p.copy_(p_copy)
+    else:
+        for p in model.parameters():
+            dist.broadcast(p, src=src_rank)

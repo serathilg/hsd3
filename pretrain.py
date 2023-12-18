@@ -31,6 +31,7 @@ from hucc.agents.utils import discounted_bwd_cumsum_
 from hucc.envs.ctrlgs import CtrlgsPreTrainingEnv
 from hucc.envs.goal_spaces import g_goal_spaces
 from hucc.spaces import th_flatten
+from hucc.utils import broadcast_model
 from train import TrainingSetup, checkpoint, restore, setup_training
 
 log = logging.getLogger(__name__)
@@ -871,13 +872,16 @@ def setup_training_mfdim(cfg: DictConfig):
 
 
 def worker(rank, role, queues, bcast_barrier, cfg: DictConfig):
-    if th.cuda.is_available():
-        th.cuda.set_device(rank)
+    if th.cuda.is_available() and cfg.device == "cuda":
+        th.cuda.set_device(rank % th.cuda.device_count())
     log.info(
         f'Creating process group of size {cfg.distributed.size} via {cfg.distributed.init_method} [rank={rank}]'
     )
+    # you can not have multiple processes/ranks use the same gpu with the nccl backend,
+    # so if you want to run this (two processes) on a single gpu workstation, we need
+    # to switch to the 'gloo' backend
     dist.init_process_group(
-        backend='nccl' if th.cuda.is_available() else 'gloo',
+        backend='nccl' if th.cuda.device_count() >= cfg.distributed.size else 'gloo',
         rank=rank,
         world_size=cfg.distributed.size,
         init_method=cfg.distributed.init_method,
@@ -922,8 +926,7 @@ def worker(rank, role, queues, bcast_barrier, cfg: DictConfig):
 
     log.debug(f'broadcast params {rank}:{role}')
     bcast_barrier.wait()
-    for p in setup.model.parameters():
-        dist.broadcast(p, src=cfg.distributed.num_learners)
+    broadcast_model(setup.model, cfg.distributed.num_learners)
     dist.barrier()
     log.debug('done')
 
