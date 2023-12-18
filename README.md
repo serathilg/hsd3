@@ -13,6 +13,8 @@ The benchmark suite can be found in a standalone repository at
 [facebookresearch/bipedal-skills](https://github.com/facebookresearch/bipedal-skills)
 
 ## Prerequisites
+- `conda env create -f environment.yaml`
+- `pip install 'gym==0.24.1' 'cython<3' patchelf 'fancy_gym[metaworld,dmc] @ git+https://github.com/ALRhub/fancy_gym.git@legacy'`
 
 Install PyTorch according to the [official
 instructions](https://pytorch.org/get-started), for example in a new conda
@@ -94,3 +96,16 @@ limit high-level control to X translation (2) and the left foot (3+4).
 
 ## License
 hsd3 is MIT licensed, as found in the LICENSE file.
+
+
+
+
+# Info Pretrain
+Learner has envs in single proces sequential, only single eval env
+Actor has envs in subprocesses and many eval envs
+Learner and Actor have independent models (pi, q and reachibility) (same init because of same seed though), broadcast of first Actor (i think) params anyway
+
+Learner waits for transition in queue, then does SACMT agent step (update networks)
+
+Actor copies model to cpu and disables gradients start loop with: [sometimes evaluate model, determine goal-spaces (? update_fdist)], select actions, step envs, pushes transtition into queues, do SACMT agent step (check for new parameters broadcast), reset if neccessary, copy model to cpu if updated, more eval decision logic
+

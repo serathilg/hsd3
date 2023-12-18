@@ -10,7 +10,7 @@ import random
 import sys
 import traceback
 from collections import deque
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import gym
 import numpy as np
@@ -50,7 +50,10 @@ class CompatSyncVectorEnv(SyncVectorEnv):
 
         return self.observations
 
-    def reset_wait(self):
+    def reset_wait(self, seed: Optional[Union[int, List[int]]] = None, 
+                    return_info: bool = False, options: Optional[dict] = None):
+        if (seed is not None) or (return_info is not False) or (options is not None):
+            raise NotImplementedError("TODO: port to gym > 0.21.")
         self._dones[:] = False
         observations = []
         for env in self.envs:
@@ -240,7 +243,7 @@ def async_worker_shared_memory(
                 if is_done or command == 'reset':
                     observation = env.reset()
                     write_to_shared_memory(
-                        index, observation, shared_memory, observation_space
+                        observation_space, index, observation, shared_memory, 
                     )
                 is_done = False
                 pipe.send((None, True))
@@ -248,7 +251,7 @@ def async_worker_shared_memory(
                 observation, reward, done, info = env.step(data)
                 is_done = done
                 write_to_shared_memory(
-                    index, observation, shared_memory, observation_space
+                    observation_space, index, observation, shared_memory, 
                 )
                 pipe.send(((None, reward, done, info), True))
             elif command == 'seed':
@@ -397,7 +400,7 @@ def make_vec_envs(
 ) -> VecPyTorch:
     def make_env(seed, fork, i):
         def thunk():
-            env = gym.make(env_name, **env_args)
+            env = gym.make(env_name, disable_env_checker=True, **env_args)
             if fork and seed is not None:
                 random.seed(seed + i)
             if seed is not None and hasattr(env, 'seed'):

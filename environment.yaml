@@ -1,0 +1,13 @@
+name: hsd-3-fancy_gym
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pytorch
+  - pytorch-cuda=11.8
+  - setuptools==65.5.0 # gym 0.21 broken with newer
+  - pip==21 # gym 0.21 broken with newer
+  - pip:
+    - -r requirements.txt

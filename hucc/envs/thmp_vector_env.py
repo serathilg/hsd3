@@ -12,6 +12,7 @@ import sys
 import time
 from copy import deepcopy
 from enum import Enum
+from typing import List, Optional, Union
 
 import numpy as np
 from gym import logger
@@ -111,7 +112,7 @@ class TorchAsyncVectorEnv(VectorEnv):
                     self.single_observation_space, n=self.num_envs, ctx=ctx
                 )
                 self.observations = read_from_shared_memory(
-                    _obs_buffer, self.single_observation_space, n=self.num_envs
+                    self.single_observation_space, _obs_buffer, n=self.num_envs
                 )
             except CustomSpaceError:
                 raise ValueError(
@@ -180,7 +181,10 @@ class TorchAsyncVectorEnv(VectorEnv):
         _, successes = zip(*[pipe.recv() for pipe in self.parent_pipes])
         self._raise_if_errors(successes)
 
-    def reset_async(self):
+    def reset_async(self, seed: Optional[Union[int, List[int]]] = None, 
+                    return_info: bool = False, options: Optional[dict] = None):
+        if (seed is not None) or (return_info is not False) or (options is not None):
+            raise NotImplementedError("TODO: port to gym > 0.21.")
         self._assert_is_running()
         if self._state != AsyncState.DEFAULT:
             raise AlreadyPendingCallError(
@@ -195,7 +199,8 @@ class TorchAsyncVectorEnv(VectorEnv):
             pipe.send(('reset', None))
         self._state = AsyncState.WAITING_RESET
 
-    def reset_wait(self, timeout=None):
+    def reset_wait(self, timeout=None, seed: Optional[Union[int, List[int]]] = None, 
+                    return_info: bool = False, options: Optional[dict] = None):
         """
         Parameters
         ----------
@@ -208,6 +213,8 @@ class TorchAsyncVectorEnv(VectorEnv):
         observations : sample from `observation_space`
             A batch of observations from the vectorized environment.
         """
+        if (seed is not None) or (return_info is not False) or (options is not None):
+            raise NotImplementedError("TODO: port to gym > 0.21.")
         self._assert_is_running()
         if self._state != AsyncState.WAITING_RESET:
             raise NoAsyncCallError(
