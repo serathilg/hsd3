@@ -28,7 +28,7 @@ from torch import multiprocessing as mp
 import hucc
 from hucc.agents.sacmt import SACMTAgent
 from hucc.agents.utils import discounted_bwd_cumsum_
-from hucc.envs.ctrlgs import CtrlgsPreTrainingEnv
+from hucc.envs.fancy_gym_ctrlgs import FancyGymCtrlgsPreTrainingEnv
 from hucc.envs.goal_spaces import g_goal_spaces
 from hucc.spaces import th_flatten
 from hucc.utils import broadcast_model
@@ -42,7 +42,7 @@ def abstr_name(cfg, d):
     if cfg.env.name == 'ContCtrlgsPreTraining-v1':
         return ','.join(
             [
-                CtrlgsPreTrainingEnv.feature_name(cfg.robot, cfg.features, f)
+                FancyGymCtrlgsPreTrainingEnv.feature_name(cfg.robot, cfg.features, f)
                 for f in feats
             ]
         )
@@ -819,7 +819,7 @@ def setup_training_mfdim(cfg: DictConfig):
     uncontrollable = set()
     for dim in dims:
         for d in map(int, dim.split('+')):
-            if not CtrlgsPreTrainingEnv.feature_controllable(
+            if not FancyGymCtrlgsPreTrainingEnv.feature_controllable(
                 cfg.robot, cfg.features, d
             ):
                 uncontrollable.add(dim)

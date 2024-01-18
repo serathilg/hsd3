@@ -22,7 +22,7 @@ from torch.nn import functional as F
 
 from hucc import ReplayBuffer
 from hucc.agents import Agent
-from hucc.envs.ctrlgs import CtrlgsPreTrainingEnv
+from hucc.envs.fancy_gym_ctrlgs import FancyGymCtrlgsPreTrainingEnv
 from hucc.envs.goal_spaces import subsets_task_map
 from hucc.models import TracedModule
 from hucc.utils import dim_select, sorted_nicely_sep
@@ -111,7 +111,7 @@ class HiToLoInterface:
 
         # XXX A very poor way of querying psi etc -- unify this.
         fdist = {a: 1.0 for a in self.subsets}
-        dummy_env = CtrlgsPreTrainingEnv(
+        dummy_env = FancyGymCtrlgsPreTrainingEnv(
             gscfg.robot,
             gscfg.features,
             feature_dist=fdist,
@@ -362,7 +362,7 @@ class HiToLoInterface:
         for i, s in enumerate(self.subsets):
             name = ','.join(
                 [
-                    CtrlgsPreTrainingEnv.feature_name(
+                    FancyGymCtrlgsPreTrainingEnv.feature_name(
                         self.robot, self.features, int(f)
                     )
                     for f in s.split(',')

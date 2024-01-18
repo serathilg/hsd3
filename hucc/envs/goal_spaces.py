@@ -8,6 +8,7 @@ import logging
 import re
 from itertools import combinations
 from typing import Dict, List, Set, Tuple
+import numpy as np
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ g_delta_feats = {
     'Walker': [1],
     'Humanoid': [0, 1],
     'HumanoidPC': [0, 1],
+    'Reacher': [],
 }
 
 
@@ -59,15 +61,45 @@ g_goal_ranges_bodyfeet_humanoid: List[Tuple] = [
     (11, 'right_foot:pz', -1.00, +0.20),
 ]
 
+
+g_goal_ranges_joint_value_reacher: List[Tuple] = [
+    # cover full 360 degree range, invalid states avoid prevent spinning
+    (0, 'joint0', -1.0*np.pi, +1.0*np.pi), 
+    (1, 'joint1', -1.0*np.pi, +1.0*np.pi), 
+    (2, 'joint2', -1.0*np.pi, +1.0*np.pi),
+    (3, 'joint3', -1.0*np.pi, +1.0*np.pi),
+    (4, 'joint4', -1.0*np.pi, +1.0*np.pi),
+]
+
+g_goal_ranges_joint_value_vel_reacher: List[Tuple] = g_goal_ranges_joint_value_reacher + [
+    # TODO: figure out working vel ranges that neither blow up reward because they are too tight
+    # nor are frequently impossible to reach because they are too large.
+    (len(g_goal_ranges_joint_value_reacher) + 0, 'vel0', -0.3*np.pi, +0.3*np.pi),
+    (len(g_goal_ranges_joint_value_reacher) + 1, 'vel1', -0.3*np.pi, +0.3*np.pi),
+    (len(g_goal_ranges_joint_value_reacher) + 2, 'vel2', -0.3*np.pi, +0.3*np.pi),
+    (len(g_goal_ranges_joint_value_reacher) + 3, 'vel3', -0.3*np.pi, +0.3*np.pi),
+    (len(g_goal_ranges_joint_value_reacher) + 4, 'vel4', -0.3*np.pi, +0.3*np.pi),
+]
+
 g_goal_spaces_bodyfeet: Dict[str, Dict[str, List]] = {
     'Walker': def_ranges(g_goal_ranges_bodyfeet_walker, [1]),
     'Humanoid': def_ranges(g_goal_ranges_bodyfeet_humanoid, [0, 1], [3]),
     'HumanoidPC': def_ranges(g_goal_ranges_bodyfeet_humanoid, [0, 1], [3]),
 }
 
+g_goal_spaces_joint_value: Dict[str, Dict[str, List]] = {
+    'Reacher': def_ranges(g_goal_ranges_joint_value_reacher), # delta_feats?
+}
+
+g_goal_spaces_joint_value_vel: Dict[str, Dict[str, List]] = {
+    'Reacher': def_ranges(g_goal_ranges_joint_value_vel_reacher), # delta_feats?
+}
+
 g_goal_spaces: Dict[str, Dict[str, Dict[str, List]]] = {
     'bodyfeet': g_goal_spaces_bodyfeet,
     'bodyfeet-relz': g_goal_spaces_bodyfeet,
+    'joint_value': g_goal_spaces_joint_value,
+    'joint_value_vel': g_goal_spaces_joint_value_vel,
 }
 
 
