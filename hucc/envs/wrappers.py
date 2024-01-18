@@ -45,7 +45,7 @@ class CompatSyncVectorEnv(SyncVectorEnv):
             else:
                 observations.append(self._observations[i])
         concatenate(
-            observations, self.observations, self.single_observation_space
+            self.single_observation_space, observations, self.observations
         )
 
         return self.observations
@@ -61,7 +61,7 @@ class CompatSyncVectorEnv(SyncVectorEnv):
             observations.append(observation)
         self._observations = observations
         concatenate(
-            observations, self.observations, self.single_observation_space
+            self.single_observation_space, observations, self.observations
         )
 
         return self.observations
@@ -76,7 +76,7 @@ class CompatSyncVectorEnv(SyncVectorEnv):
             infos.append(info)
         self._observations = observations
         concatenate(
-            observations, self.observations, self.single_observation_space
+            self.single_observation_space, observations, self.observations
         )
 
         return self.observations, self._rewards, self._dones, infos
