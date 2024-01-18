@@ -1,6 +1,7 @@
 defaults:
   - common
   - agent: hsd3
+  - _self_
 
 max_steps: 1e7
 robot: Walker

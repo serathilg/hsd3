@@ -1,6 +1,7 @@
 defaults:
   - common
   - agent: sacmt
+  - _self_
 
 
 

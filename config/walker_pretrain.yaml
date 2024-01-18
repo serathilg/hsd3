@@ -1,6 +1,7 @@
 defaults:
   - common
   - agent: sacmt
+  - _self_
 
 horizon: 72
 idle_steps: 0

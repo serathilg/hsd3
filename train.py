@@ -533,7 +533,7 @@ def auto_adapt_config(cfg: DictConfig) -> DictConfig:
     return cfg
 
 
-@hydra.main(config_path='config')
+@hydra.main(config_path='config', version_base='1.1')
 def main(cfg: DictConfig):
     log.info(f'** running from source tree at {hydra.utils.get_original_cwd()}')
     if cfg.auto_adapt:

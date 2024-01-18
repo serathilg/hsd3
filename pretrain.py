@@ -946,7 +946,7 @@ def worker(rank, role, queues, bcast_barrier, cfg: DictConfig):
     setup.close()
 
 
-@hydra.main(config_path='config')
+@hydra.main(config_path='config', version_base='1.1')
 def main(cfg: DictConfig):
     log.info(f'** running from source tree at {hydra.utils.get_original_cwd()}')
     log.info(f'** running at {os.getcwd()}')
