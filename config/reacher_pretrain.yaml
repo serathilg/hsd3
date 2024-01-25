@@ -4,6 +4,10 @@ defaults:
   - _self_
 
 
+hydra:
+  run:
+    dir: ./outputs/${hydra.job.name}.${robot}.${features}.${feature_dims}.${now:%Y-%m-%d-%H-%M-%S}/
+
 
 horizon: 72
 idle_steps: 0

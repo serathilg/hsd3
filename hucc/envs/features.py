@@ -234,8 +234,82 @@ class JointsTaskReacherFeaturizer(Featurizer):
         return names
 
 
-def bodyfeet_featurizer(
-        p: mujoco.Physics, robot: str, prefix: str, *args, **kwargs):
+class FingerPosFrankaFeaturizer(Featurizer):
+    """Rod tip position as features for BoxPushingDense-v0."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(None, None)
+        self.env = env
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(3,), dtype=np.float32
+        )
+
+    def __call__(self) -> np.ndarray:
+        return self.env.unwrapped.data.site("rod_tip").xpos.copy()
+
+    def feature_names(self) -> List[str]:
+        return ["tipx", "tipy", "tipz"]
+
+
+class JointsFrankaFeaturizer(Featurizer):
+    """Regular proprioceptive observation for BoxPushingDense-v0.
+
+    The name 'joints' is misleading but this is the named used by HSD-3 for
+    the non goal-space and task-independent features.
+
+    This only needs to exist for the adaptation of regular (fancy_gym) envs
+    to work."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(None, None)
+        self.env = env
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(2 * 7,), dtype=np.float32
+        )
+        # mask the task-specific dimensions
+        self._obs_proprio = np.array(list(range(0, 14)))
+
+    def __call__(self) -> np.ndarray:
+        return self.env.unwrapped._get_obs()[self._obs_proprio].copy()
+
+    def feature_names(self) -> List[str]:
+        names = [f"qpos{i}" for i in range(7)]
+        names += [f"qvel{i}" for i in range(7)]
+        return names
+
+
+class JointsTaskFrankaFeaturizer(Featurizer):
+    """Regular task observation for BoxPushingDense-v0.
+
+    This only needs to exist for the adaptation of regular (fancy_gym) envs
+    to work."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(None, None)
+        self.env = env
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(4 * 7,), dtype=np.float32
+        )
+        # NOTE: codebase implicitly expects task-specific obs to be last dims of obs,
+        # for BPD, the dims which are not in JointsFrankaFeaturizer are already at the end.
+        # HiToLoInterface uses obs_mask of (dummy) goal-space pretrain env to create
+        # the low-level policy observation by masking the features; obs_mask is basically
+        # range(n).
+
+    def __call__(self) -> np.ndarray:
+        return self.env.unwrapped._get_obs().copy()
+
+    def feature_names(self) -> List[str]:
+        names = [f"qpos{i}" for i in range(7)]
+        names += [f"qvel{i}" for i in range(7)]
+        names += [f"box_0_pos{i}" for i in ("x", "y", "z")]
+        names += [f"box_0_quat{i}" for i in ("w", "x", "y", "z")]
+        names += [f"replan_target_pos{i}" for i in ("x", "y", "z")]
+        names += [f"replan_target_quat{i}" for i in ("w", "x", "y", "z")]
+        return names
+
+
+def bodyfeet_featurizer(p: mujoco.Physics, robot: str, prefix: str, *args, **kwargs):
     if robot == "walker":
         return BodyFeetWalkerFeaturizer(p, robot, prefix, *args, **kwargs)
     elif robot == "humanoid" or robot == "humanoidpc":

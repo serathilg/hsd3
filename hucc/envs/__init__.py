@@ -4,11 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import fancy_gym # noqa: F401, needed for registrations of envs
+import fancy_gym  # noqa: F401, needed for registrations of envs
 from bisk.features import register_featurizer
 from gym import spec
 from gym.envs.registration import register
 
+from hucc.envs.fancy_gym_bisk import FancyGymTask
 from hucc.envs.features import (
     bodyfeet_featurizer,
     bodyfeet_relz_featurizer,
@@ -17,10 +18,24 @@ from hucc.envs.features import (
 register(
     id="BiskReacher5d-v0",
     entry_point="hucc.envs.fancy_gym_bisk:FancyGymAsBiskSingleRobotEnv",
-    max_episode_steps=spec("Reacher5d-v0").max_episode_steps,
     kwargs={
         "allow_fallover": True,
+        "task": FancyGymTask.REACHER,
     },
+)
+
+register(
+    id="BiskBoxPushingDense-v0",
+    entry_point="hucc.envs.fancy_gym_bisk:FancyGymAsBiskSingleRobotEnv",
+    kwargs={
+        "allow_fallover": True,
+        "task": FancyGymTask.BOX_PUSH_DENSE,
+    },
+)
+
+register(
+    id="FrankaRodSandbox-v0",
+    entry_point="hucc.envs.franka_sandbox:FrankaRodSandbox",
 )
 
 register(

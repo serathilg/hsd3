@@ -3,10 +3,12 @@ from typing import Dict, List
 import gym
 import numpy as np
 from bisk import BiskSingleRobotEnv
+from bisk.features.base import Featurizer
 
 from hucc.envs.ctrlgs import CtrlgsPreTrainingEnv
 from hucc.envs.fancy_gym_bisk import (
     FancyGymAsBiskSingleRobotEnv,
+    FancyGymTask,
     make_fancy_gym_featurizer,
 )
 from hucc.envs.goal_spaces import g_delta_feats, g_goal_spaces
@@ -48,9 +50,9 @@ class FancyGymCtrlgsPreTrainingEnv(FancyGymAsBiskSingleRobotEnv, CtrlgsPreTraini
             FancyGymAsBiskSingleRobotEnv.__init__(
                 self,
                 robot=robot,
+                task=FancyGymTask.SANDBOX,
                 features="joints",  # 'joints' means proprioceptive only
                 allow_fallover=allow_fallover,
-                max_episode_steps=1e9,  # effectively disable timelimit
             )
 
             # the features here define the goal-spaces
@@ -284,3 +286,16 @@ class FancyGymCtrlgsPreTrainingEnv(FancyGymAsBiskSingleRobotEnv, CtrlgsPreTraini
             return FancyGymAsBiskSingleRobotEnv.fell_over(self)
         else:
             return CtrlgsPreTrainingEnv.fell_over(self)
+
+    def make_featurizer(self, features: str) -> Featurizer:
+        if self._is_fancy_gym:
+            return FancyGymAsBiskSingleRobotEnv.make_featurizer(self, features)
+        else:
+            return BiskSingleRobotEnv.make_featurizer(self, features)
+
+    def seed(self, seed=None):
+        self._do_hard_reset = True
+        if self._is_fancy_gym:
+            return FancyGymAsBiskSingleRobotEnv.seed(self, seed)
+        else:
+            return BiskSingleRobotEnv.seed(self, seed)

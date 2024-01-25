@@ -1,9 +1,12 @@
 # Some reasonable defaults for all experiments
 hydra:
   run:
-    dir: .
+    # dir: .
+    dir: ./outputs/${hydra.job.name}.${robot}.${now:%Y-%m-%d-%H-%M-%S}/
   sweep:  # used for slurm jobs
     dir: /checkpoint/${oc.env:USER}/jobs/${now:%Y}/${now:%Y-%m}/${now:%Y-%m-%d}/${hydra.job.name}.${now:%H-%M-%S}
+  job:
+    chdir: True # maintain old behaviour, TODO: check if necessary
 slurm:
   partition: learnfair
   cpus_per_task: 5

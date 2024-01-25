@@ -8,17 +8,21 @@ import logging
 import re
 from itertools import combinations
 from typing import Dict, List, Set, Tuple
+
 import numpy as np
 
 log = logging.getLogger(__name__)
 
 
-# Delta features for standard joint observations
+# Delta features for standard joint observations (not goal-space delta_feats!)
+# this feature of the regular "joints" observation are removed before passing to
+# the low-level policy.
 g_delta_feats = {
     'Walker': [1],
     'Humanoid': [0, 1],
     'HumanoidPC': [0, 1],
     'Reacher': [],
+    'Franka': [], # proprioceptive is just qpos/qvel
 }
 
 
@@ -61,6 +65,18 @@ g_goal_ranges_bodyfeet_humanoid: List[Tuple] = [
     (11, 'right_foot:pz', -1.00, +0.20),
 ]
 
+g_goal_ranges_fingerpos_franka: List[Tuple] = [
+    # within frame above desk
+    (0, 'tipx', -0.30, +0.70),
+    (1, 'tipy', -1.00, +1.00),
+    (2, 'tipz', +0.00, +1.20),
+]
+
+g_goal_ranges_fingerpos_delta_franka: List[Tuple] = [
+    (0, 'tipx', -0.20, +0.20),
+    (1, 'tipy', -0.20, +0.20),
+    (2, 'tipz', -0.10, +0.10),
+]
 
 g_goal_ranges_joint_value_reacher: List[Tuple] = [
     # cover full 360 degree range, invalid states avoid prevent spinning
@@ -87,6 +103,15 @@ g_goal_spaces_bodyfeet: Dict[str, Dict[str, List]] = {
     'HumanoidPC': def_ranges(g_goal_ranges_bodyfeet_humanoid, [0, 1], [3]),
 }
 
+g_goal_spaces_fingerpos: Dict[str, Dict[str, List]] = {
+    'Franka': def_ranges(g_goal_ranges_fingerpos_franka),
+}
+
+g_goal_spaces_fingerpos_delta: Dict[str, Dict[str, List]] = {
+    # delta x,y,z relative to current rod tip position
+    'Franka': def_ranges(g_goal_ranges_fingerpos_delta_franka, [0, 1, 2]),
+}
+
 g_goal_spaces_joint_value: Dict[str, Dict[str, List]] = {
     'Reacher': def_ranges(g_goal_ranges_joint_value_reacher), # delta_feats?
 }
@@ -98,6 +123,8 @@ g_goal_spaces_joint_value_vel: Dict[str, Dict[str, List]] = {
 g_goal_spaces: Dict[str, Dict[str, Dict[str, List]]] = {
     'bodyfeet': g_goal_spaces_bodyfeet,
     'bodyfeet-relz': g_goal_spaces_bodyfeet,
+    'fingerpos': g_goal_spaces_fingerpos,
+    'fingerpos_delta': g_goal_spaces_fingerpos_delta,
     'joint_value': g_goal_spaces_joint_value,
     'joint_value_vel': g_goal_spaces_joint_value_vel,
 }
