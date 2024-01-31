@@ -59,3 +59,7 @@ video:
   length: 500
   size: [480, 480]
   annotations: true
+
+
+wandb:
+  group: null

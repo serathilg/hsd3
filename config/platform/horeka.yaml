@@ -1,0 +1,36 @@
+# @package _global_
+
+defaults:
+  - override /hydra/launcher: clusterduck_slurm
+  - _self_
+
+hydra:
+  mode: MULTIRUN  # needed for launcher to be used
+  sweep:  # used for slurm jobs.
+    dir: ${oc.env:HOME}/jmlr_mp3/jobs/${now:%Y}/${now:%Y-%m}/${now:%Y-%m-%d}/${hydra.job.name}.${now:%H-%M-%S} 
+  launcher:
+    # launcher/cluster specific options
+    timeout_min: ???
+    partition: dev_accelerated
+    gres: gpu:4
+    setup:
+      # Create wandb folder in fast, job-local storage: https://www.nhr.kit.edu/userdocs/horeka/filesystems/#tmpdir
+      # NOTE: wandb folder will be deleted after job completion, but by then it will have synced with server
+      - export WANDB_DIR=$TMPDIR/wandb
+      - mkdir -pv $WANDB_DIR
+      - export WANDB_CONSOLE=off
+
+    # clusterduck specific options
+    parallel_runs_per_node: 4
+    total_runs_per_node: null  # optional. None puts all runs into one slurm job
+    resources_config:
+      cpu:
+      cuda:
+      rendering:
+      stagger:
+        delay: 5
+
+  # disable logging from job to stdout, as this pollutes slurm output
+  job_logging:
+    root:
+      handlers: [file]

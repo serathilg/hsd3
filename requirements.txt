@@ -8,3 +8,5 @@ scipy>=1.6
 tensorboard>=1.15
 visdom>=0.1.8
 numpy==1.23.5
+wandb==0.16.2
+clusterduck @ git+https://github.com/ALRhub/clusterduck.git

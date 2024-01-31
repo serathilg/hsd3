@@ -9,25 +9,28 @@ import json
 import logging
 import os
 import shutil
-from copy import copy
 from collections import defaultdict
+from copy import copy
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 import gym
 import hydra
 import numpy as np
 import torch as th
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from visdom import Visdom
 
 import hucc
+import wandb
 from hucc.agents.utils import discounted_bwd_cumsum_
 from hucc.hashcount import HashingCountReward
 from hucc.spaces import th_flatten
+from wandb.sdk.wandb_run import Run
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +40,7 @@ class TrainingSetup(SimpleNamespace):
     agent: hucc.Agent
     model: nn.Module
     tbw: SummaryWriter
+    wandb_run: Optional[Run]
     viz: Visdom
     rq: hucc.RenderQueue
     envs: hucc.VecPyTorch
@@ -53,6 +57,9 @@ class TrainingSetup(SimpleNamespace):
         self.rq.close()
         self.envs.close()
         self.eval_envs.close()
+
+        if self.wandb_run is not None:
+            self.wandb_run.finish()
 
         # The replay buffer checkpoint may be huge and we won't need it anymore
         # after training is done.
@@ -119,18 +126,40 @@ def setup_training(cfg: DictConfig) -> TrainingSetup:
 
     agent = hucc.make_agent(cfg.agent, envs, model, optim)
 
+    hc = HydraConfig.get()
+    wandb_config = OmegaConf.to_container(cfg, resolve=True)
+    wandb_config['run_working_dir'] = os.getcwd()
+    wandb_project = f"hsd3-{cfg.env.args.robot}"
+    wandb_jobtype = hc.job.name
+    wandb_group = cfg.wandb.group
+
+
     # If the current directoy is different from the original one, assume we have
     # a dedicated job directory. We'll just write our summaries to 'tb/' then.
     try:
         if os.getcwd() != hydra.utils.get_original_cwd():
-            tbw = SummaryWriter('tb')
+            log_dir = "tb"
+            wandb.tensorboard.patch(root_logdir=log_dir, save=False, pytorch=True)
+            # wandb.init(project=wandb_project, config=wandb_config, job_type=wandb_jobtype, group=wandb_group)            
+            tbw = SummaryWriter(log_dir=log_dir)
         else:
-            tbw = SummaryWriter()
+            # manually define identifiable output dir, as it is needed for wandb patch root_logdir
+            import socket
+            from datetime import datetime
+
+            current_time = datetime.now().strftime("%b%d_%H-%M-%S")
+            log_dir = os.path.join("runs", current_time + "_" + socket.gethostname())
+
+            wandb.tensorboard.patch(root_logdir=log_dir, save=False, pytorch=True)
+            # wandb.init(project=wandb_project, config=wandb_config, job_type=wandb_jobtype, group=wandb_group)
+            tbw = SummaryWriter(log_dir=log_dir)
         agent.tbw = tbw
+        wandb_run = wandb.init(project=wandb_project, config=wandb_config, job_type=wandb_jobtype, group=wandb_group)
     except:
         # XXX hydra.utils.get_original_cwd throws if we don't run this via
         # run_hydra
         tbw = None
+        wandb_run = None
 
     try:
         no_gs_obs = copy(envs.observation_space.spaces)
@@ -153,6 +182,7 @@ def setup_training(cfg: DictConfig) -> TrainingSetup:
         agent=agent,
         model=model,
         tbw=tbw,
+        wandb_run=wandb_run,
         viz=viz,
         rq=rq,
         envs=envs,

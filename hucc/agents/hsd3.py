@@ -429,8 +429,8 @@ class HSD3Agent(Agent):
         self._action_space_d = self._iface.action_space_hi[self._dkey]
 
         self._model = model
-        self._model_pi_c = model.hi.pi_subgoal
-        self._model_pi_d = model.hi.pi_task
+        self._model_pi_c = th.compile(model.hi.pi_subgoal, mode="reduce-overhead")
+        self._model_pi_d = th.compile(model.hi.pi_task, mode="reduce-overhead")
         self._optim_pi_c = optim.hi.pi_subgoal
         self._optim_pi_d = optim.hi.pi_task
         self._optim = optim
@@ -534,7 +534,12 @@ class HSD3Agent(Agent):
         self._pi_lo_det = DeterministicLo(self._model.lo.pi)
         if cfg.trace:
             self._q_hi = TracedModule(self._q_hi)
+            self._target.hi.q = TracedModule(self._target.hi.q)
             self._pi_lo_det = TracedModule(self._pi_lo_det)
+
+        # cache frequent access
+        self._model_hi_q_parameters = list(self._model.hi.q.parameters())
+        self._target_hi_q_parameters = list(self._target.hi.q.parameters())
 
         self.set_checkpoint_attr(
             '_model',
@@ -882,6 +887,7 @@ class HSD3Agent(Agent):
             c_batchmask = self._c_batchmask.narrow(0, 0, bsz * nd)
 
             dist_d = self._model_pi_d(obs_p)
+            dist_d = D.Categorical(logits=dist_d.logits) # copy for torch.compile
             action_c, log_prob_c = act_logp_c(obs_p, self._action_c_mask)
 
             if self._expectation_d == -1 and nd > 1:
@@ -1015,7 +1021,7 @@ class HSD3Agent(Agent):
             self._optim.hi.q.step()
 
             # Policy update
-            for param in self._model.hi.q.parameters():
+            for param in self._model_hi_q_parameters:
                 param.requires_grad_(False)
 
             # No time input for policy, and Q-functions are queried as if step
@@ -1084,7 +1090,7 @@ class HSD3Agent(Agent):
             self._optim_pi_c.step()
             self._optim_pi_d.step()
 
-            for param in self._model.hi.q.parameters():
+            for param in self._model_hi_q_parameters:
                 param.requires_grad_(True)
 
             # Optional temperature update
@@ -1130,8 +1136,8 @@ class HSD3Agent(Agent):
             # Update target network
             with th.no_grad():
                 for tp, p in zip(
-                    self._target.hi.q.parameters(),
-                    self._model.hi.q.parameters(),
+                    self._target_hi_q_parameters,
+                    self._model_hi_q_parameters,
                 ):
                     tp.data.lerp_(p.data, 1.0 - self._polyak)
 
