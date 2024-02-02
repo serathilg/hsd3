@@ -24,9 +24,9 @@ task_weighting: uniform
 downrank: 0.1
 lp_new_task: 0.1
 lp_eps: 0.1
-# eval_mode: running_avg
-eval_mode: reachability
-max_steps: 5e7
+eval_mode: running_avg
+# eval_mode: reachability
+max_steps: 5e6
 combine_after_steps: 0
 backprop_fallover: false
 estimate_joint_spaces: null
@@ -35,12 +35,11 @@ checkpoint_path: checkpoint-lo.pt
 
 eval:
   episodes_per_task: 50
-  interval: 100_000
-  video:
-    record_all: false
-video: null
-# video:
-#   interval: 500_000
+  interval: 500_000
+  video: null # for box push dense, eval video crashes iff env.eval_procs > 1 i.e. env.eval_args.fork == true. TODO: debug
+    # record_all: false
+video:
+  interval: 500_000
 
 distributed:
   num_actors: 1
@@ -56,8 +55,7 @@ visdom:
 
 env:
   name: ContCtrlgsPreTraining-v1
-  # eval_procs: 20
-  eval_procs: 1
+  eval_procs: 20
   train_procs: 20
   args:
     robot: ${robot}

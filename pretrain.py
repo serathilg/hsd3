@@ -872,6 +872,12 @@ def setup_training_mfdim(cfg: DictConfig):
 
 
 def worker(rank, role, queues, bcast_barrier, cfg: DictConfig):
+    import psutil
+    log.info(
+        f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', '(ALL)')}"
+    )
+    log.info(f"Worker cuda available {th.cuda.is_available()}, {rank=} of {th.cuda.device_count()} devices.")
+    log.info(f"CPU affinity: {psutil.Process().cpu_affinity()}")
     if th.cuda.is_available() and cfg.device == "cuda":
         th.cuda.set_device(rank % th.cuda.device_count())
     log.info(
@@ -924,6 +930,8 @@ def worker(rank, role, queues, bcast_barrier, cfg: DictConfig):
 
     restore(setup)
 
+    log.info(f"{rank=} model on device {next(setup.model.parameters()).device}")
+
     log.debug(f'broadcast params {rank}:{role}')
     bcast_barrier.wait()
     broadcast_model(setup.model, cfg.distributed.num_learners)
@@ -948,6 +956,13 @@ def worker(rank, role, queues, bcast_barrier, cfg: DictConfig):
 
 @hydra.main(config_path='config', version_base='1.1')
 def main(cfg: DictConfig):
+    import psutil
+    log.info(
+        f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', '(ALL)')}"
+    )
+    log.info(f"PyTorch detected {th.cuda.device_count()} devices.")
+    log.info(f"CPU affinity: {psutil.Process().cpu_affinity()}")
+
     log.info(f'** running from source tree at {hydra.utils.get_original_cwd()}')
     log.info(f'** running at {os.getcwd()}')
     log.info(f'** configuration:\n{OmegaConf.to_yaml(cfg, resolve=True)}')
