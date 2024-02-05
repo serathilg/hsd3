@@ -20,7 +20,10 @@ auto_adapt: true
 eval:
   interval: 50_000
   metrics:
-    score: sum:default
+    is_success: final:default
+    box_goal_pos_dist: final:default
+    box_goal_rot_dist: final:default
+    episode_energy: final:default
   video:  null # for box push dense, eval video crashes iff env.eval_procs > 1 i.e. env.eval_args.fork == true. TODO: debug
 
 video: 

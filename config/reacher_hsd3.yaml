@@ -14,7 +14,8 @@ auto_adapt: true
 eval:
   interval: 50_000
   metrics:
-    score: sum:default
+    reward_dist: sum:default
+    reward_ctrl: sum:default
 
 video: 
   interval: 50_000

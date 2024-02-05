@@ -20,6 +20,7 @@ from omegaconf import DictConfig
 from torch import nn
 from torch.nn import functional as F
 
+import wandb
 from hucc import ReplayBuffer
 from hucc.agents import Agent
 from hucc.envs.fancy_gym_ctrlgs import FancyGymCtrlgsPreTrainingEnv
@@ -1152,14 +1153,23 @@ class HSD3Agent(Agent):
         self.tbw_add_scalar('HealthHi/ResidualVariance2', resvar2.item())
         self.tbw_add_scalar('HealthHi/EntropyC', -log_prob_c.mean())
         self.tbw_add_scalar('HealthHi/EntropyD', dist_d.entropy().mean())
+        wandb_data = {
+            "global_step": self.n_samples,
+            "LossHi/Policy": pi_loss.item(),
+            "LossHi/QValue": q_loss.item(),
+            "HealthHi/ResidualVariance1": resvar1.item(),
+            "HealthHi/ResidualVariance2": resvar2.item(),
+            "HealthHi/EntropyC": -log_prob_c.mean().item(),
+            "HealthHi/EntropyD": dist_d.entropy().mean().item(),
+        }
         if self._optim_alpha_c:
             self.tbw_add_scalar(
                 'HealthHi/AlphaC', self._log_alpha_c.exp().mean().item()
             )
+            wandb_data["HealthHi/AlphaC"] = self._log_alpha_c.exp().mean().item()
         if self._optim_alpha_d:
-            self.tbw_add_scalar(
-                'HealthHi/AlphaD', self._log_alpha_d.exp().item()
-            )
+            self.tbw_add_scalar('HealthHi/AlphaD', self._log_alpha_d.exp().item())
+            wandb_data["HealthHi/AlphaD"] = self._log_alpha_d.exp().item()
         if self._n_updates % 10 == 1:
             self.tbw.add_histogram(
                 'HealthHi/PiD',
@@ -1171,6 +1181,17 @@ class HSD3Agent(Agent):
                 self._n_samples,
                 bins=nd,
             )
+            wandb_data["HealthHi/PiD"] = wandb.Histogram(
+                th.multinomial(
+                    dist_d.probs,
+                    int(np.ceil(1000 / self._bsz)),
+                    replacement=True,
+                )
+                .view(-1)
+                .cpu()
+                .numpy(),
+                num_bins=nd,
+            )
         if self._n_updates % 100 == 1:
             self.tbw.add_scalars(
                 'HealthHi/GradNorms',
@@ -1181,13 +1202,27 @@ class HSD3Agent(Agent):
                 },
                 self.n_samples,
             )
+            wandb_data |= {
+                f"HealthHi/GradNorms/{k}": v.grad.norm().item()
+                for k, v in self._model.named_parameters()
+                if v.grad is not None
+            }
 
         td_err1 = q1_loss.sqrt().mean().item()
         td_err2 = q2_loss.sqrt().mean().item()
         td_err = (td_err1 + td_err2) / 2
-        self.tbw_add_scalar('HealthHi/AbsTDErrorTrain', td_err)
-        self.tbw_add_scalar('HealthHi/AbsTDErrorTrain1', td_err1)
-        self.tbw_add_scalar('HealthHi/AbsTDErrorTrain2', td_err2)
+        self.tbw_add_scalar("HealthHi/AbsTDErrorTrain", td_err)
+        self.tbw_add_scalar("HealthHi/AbsTDErrorTrain1", td_err1)
+        self.tbw_add_scalar("HealthHi/AbsTDErrorTrain2", td_err2)
+
+        wandb_data |= {
+            "HealthHi/AbsTDErrorTrain": td_err,
+            "HealthHi/AbsTDErrorTrain1": td_err1,
+            "HealthHi/AbsTDErrorTrain2": td_err2,
+        }
+
+        if self.wandb_run:
+            self.wandb_run.log(wandb_data)
 
         avg_cr = th.cat(self._cur_rewards).mean().item()
         log_stats = [

@@ -132,34 +132,27 @@ def setup_training(cfg: DictConfig) -> TrainingSetup:
     wandb_project = f"hsd3-{cfg.env.args.robot}"
     wandb_jobtype = hc.job.name
     wandb_group = cfg.wandb.group
+    if cfg.wandb.enabled:
+        wandb_run = wandb.init(project=wandb_project, config=wandb_config, job_type=wandb_jobtype, group=wandb_group)
+        agent.wandb_run = wandb_run
+    else:
+        wandb_run = None
 
 
     # If the current directoy is different from the original one, assume we have
     # a dedicated job directory. We'll just write our summaries to 'tb/' then.
     try:
-        if os.getcwd() != hydra.utils.get_original_cwd():
-            log_dir = "tb"
-            wandb.tensorboard.patch(root_logdir=log_dir, save=False, pytorch=True)
-            # wandb.init(project=wandb_project, config=wandb_config, job_type=wandb_jobtype, group=wandb_group)            
-            tbw = SummaryWriter(log_dir=log_dir)
+        if cfg.wandb.enabled and cfg.wandb.disables_tensorboard:
+            tbw = None
+        elif os.getcwd() != hydra.utils.get_original_cwd():
+            tbw = SummaryWriter("tb")
         else:
-            # manually define identifiable output dir, as it is needed for wandb patch root_logdir
-            import socket
-            from datetime import datetime
-
-            current_time = datetime.now().strftime("%b%d_%H-%M-%S")
-            log_dir = os.path.join("runs", current_time + "_" + socket.gethostname())
-
-            wandb.tensorboard.patch(root_logdir=log_dir, save=False, pytorch=True)
-            # wandb.init(project=wandb_project, config=wandb_config, job_type=wandb_jobtype, group=wandb_group)
-            tbw = SummaryWriter(log_dir=log_dir)
+            tbw = SummaryWriter()
         agent.tbw = tbw
-        wandb_run = wandb.init(project=wandb_project, config=wandb_config, job_type=wandb_jobtype, group=wandb_group)
     except:
         # XXX hydra.utils.get_original_cwd throws if we don't run this via
         # run_hydra
         tbw = None
-        wandb_run = None
 
     try:
         no_gs_obs = copy(envs.observation_space.spaces)
@@ -311,6 +304,10 @@ def eval(setup: TrainingSetup, n_samples: int = -1):
     ]
     ep_len = not_done.to(th.float32).sum(dim=1)
 
+    wandb_data = {
+        "global_step": n_samples,
+    }
+
     metrics_v['episode_length'] = ep_len
     metrics_v['return_disc'] = r_discounted
     metrics_v['return_undisc'] = r_undiscounted
@@ -337,10 +334,15 @@ def eval(setup: TrainingSetup, n_samples: int = -1):
                 agg = [agg]
         if isinstance(v, th.Tensor):
             agent.tbw_add_scalars(f'Eval/{k}', v, agg, n_samples)
+            wandb_data |= {f"Eval/{k}/{a}": getattr(v, a)().item() for a in agg}
         else:
             agent.tbw_add_scalars(
                 f'Eval/{k}', th.tensor(v).float(), agg, n_samples
             )
+            wandb_data |= {
+                f"Eval/{k}/{a}": getattr(th.tensor(v).float(), a)().item() for a in agg
+            }
+
     log.info(
         f'eval done, avg len {ep_len.mean().item():.01f}, avg return {r_discounted.mean().item():+.03f}, undisc avg {r_undiscounted.mean():+.03f} min {r_undiscounted.min():+0.3f} max {r_undiscounted.max():+0.3f}'
     )
@@ -353,6 +355,13 @@ def eval(setup: TrainingSetup, n_samples: int = -1):
         )
         agent.tbw_add_scalar('Eval/EntropyDMean', ent_d.mean(), n_samples)
         agent.tbw.add_histogram('Eval/EntropyD', ent_d, n_samples, bins=20)
+        wandb_data |= {
+            "Eval/EntropyDMean": ent_d.mean().item(),
+            "Eval/EntropyD": wandb.Histogram(ent_d.detach().cpu().numpy(), num_bins=20)
+        }
+        
+    if agent.wandb_run:
+        agent.wandb_run.log(wandb_data)
 
     if sum([len(q) for q in rq_in]) > 0:
         # Display cumulative reward in video
@@ -449,6 +458,11 @@ def train_loop(setup: TrainingSetup):
                 d = len(setup.hcr.bucket_sizes)
                 sc = setup.hcr.tables.clamp(max=1).sum().item() / d
                 agent.tbw_add_scalar(f'Train/UniqueStates', sc, setup.n_samples)
+                if agent.wandb_run:
+                    agent.wandb_run.log({
+                        "global_step": setup.n_samples,
+                        "Train/UniqueStates": sc,
+                    })
             setup.hcr.inc_hash(th_flatten(setup.hcr_space, obs))
         obs = envs.reset_if_done()
         setup.n_samples += n_envs

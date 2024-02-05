@@ -63,3 +63,5 @@ video:
 
 wandb:
   group: null
+  enabled: true
+  disables_tensorboard: true # no tensorboard iff wandb.enabled and wand.disables_tensorboard

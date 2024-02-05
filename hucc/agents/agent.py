@@ -18,6 +18,7 @@ from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from hucc.agents.utils import batch_2to1
+from wandb.sdk.wandb_run import Run
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class Agent:
 
     def __init__(self, cfg: DictConfig):
         self._tbw: Optional[SummaryWriter] = None
+        self._wandb_run: Optional[Run] = None
         self._n_updates = 0
         self._n_samples = 0
         # XXX we rely on step() implementations updating this counter...
@@ -51,6 +53,14 @@ class Agent:
     @tbw.setter
     def tbw(self, writer: SummaryWriter):
         self._tbw = writer
+    
+    @property
+    def wandb_run(self) -> Optional[SummaryWriter]:
+        return self._wandb_run
+
+    @wandb_run.setter
+    def wandb_run(self, writer: SummaryWriter):
+        self._wandb_run = writer
 
     @property
     def n_updates(self) -> int:

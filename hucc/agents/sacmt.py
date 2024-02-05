@@ -20,6 +20,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch.optim import Optimizer
 
+import wandb
 from hucc import ReplayBuffer
 from hucc.agents import Agent
 from hucc.utils import broadcast_model
@@ -493,18 +494,27 @@ class SACMTAgent(Agent):
             mean_alpha = np.mean(
                 [a.exp().item() for a in self._log_alpha.values()]
             )
+        wandb_data = {
+            "global_step": self.n_samples,
+            "Loss/Policy": pi_loss.item(),
+            "Loss/QValue": q_loss.item(),
+            "Health/Entropy": -log_prob.detach().mean().item(),
+        }
         self.tbw_add_scalar('Loss/Policy', pi_loss.item())
         self.tbw_add_scalar('Loss/QValue', q_loss.item())
         if self._update_reachability and hasattr(self._model, 'reachability'):
             self.tbw_add_scalar('Loss/Reachability', r_loss.item())
+            wandb_data["Loss/Reachability"] = r_loss.item()
         self.tbw_add_scalar('Health/Entropy', -log_prob.mean())
         if self._optim_alpha:
             if not self._per_task_alpha:
                 self.tbw_add_scalar(
                     'Health/Alpha', self._log_alpha['_'].exp().item()
                 )
+                wandb_data["Health/Alpha"] = self._log_alpha['_'].exp().item()
             else:
                 self.tbw_add_scalar('Health/MeanAlpha', mean_alpha)
+                wandb_data["Health/MeanAlpha"] = mean_alpha
         if self._n_updates % 100 == 1:
             self.tbw.add_scalars(
                 'Health/GradNorms',
@@ -521,6 +531,21 @@ class SACMTAgent(Agent):
                 )
             self.tbw.add_histogram('Health/Q1', q1[:100], self.n_samples)
             self.tbw.add_histogram('Health/Q2', q2[:100], self.n_samples)
+            wandb_data |= (
+                {
+                    f"Health/GradNorms/{k}": v.grad.norm().item()
+                    for k, v in self._model.named_parameters()
+                    if v.grad is not None
+                }
+                | {
+                    f"Health/PolicyA/{i}": wandb.Histogram(a[i][:100].detach().cpu().numpy())
+                    for i in range(a.shape[1])
+                }
+                | {
+                    "Health/Q1": wandb.Histogram(q1[:100].detach().cpu().numpy()),
+                    "Health/Q2": wandb.Histogram(q2[:100].detach().cpu().numpy()),
+                }
+            )
 
         # Log TD errors per abstraction
         if 'task_key' in batch and self._n_updates % 10 == 1:
@@ -530,8 +555,11 @@ class SACMTAgent(Agent):
                 for key, idx in task_key_idx.items():
                     task = self._key_to_task[key]
                     tde1 = q1_loss[idx].sqrt().mean().item()
-                    tde2 = q1_loss[idx].sqrt().mean().item()
+                    tde2 = q2_loss[idx].sqrt().mean().item()
                     tderrs[task] = (tde1 + tde2) / 2
+                    wandb_data[f"Health/AbsTDError1/{task}"] = tde1
+                    wandb_data[f"Health/AbsTDError2/{task}"] = tde2
+                    wandb_data[f"Health/AbsTDErrorMean/{task}"] = tderrs[task]
                 self.tbw.add_scalars(
                     'Health/AbsTDErrorMean', tderrs, self._n_samples
                 )
@@ -549,6 +577,19 @@ class SACMTAgent(Agent):
             {self._key_to_task[k]: v for k, v in self._task_samples.items()},
             self._n_samples,
         )
+
+        wandb_data |= {
+            f"Agent/SampledTasks/{self._key_to_task[k]}": v
+            for k, v in self._sampled_tasks.items()
+        }
+        wandb_data |= {
+            f"Agent/SamplesPerTask/{self._key_to_task[k]}": v
+            for k, v in self._task_samples.items()
+        }
+        
+
+        if self.wandb_run:
+            self.wandb_run.log(wandb_data)
 
         avg_cr = th.cat(self._cur_rewards).mean().item()
         if self._update_reachability and hasattr(self._model, 'reachability'):

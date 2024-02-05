@@ -26,6 +26,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch import multiprocessing as mp
 
 import hucc
+import wandb
 from hucc.agents.sacmt import SACMTAgent
 from hucc.agents.utils import discounted_bwd_cumsum_
 from hucc.envs.fancy_gym_ctrlgs import FancyGymCtrlgsPreTrainingEnv
@@ -344,6 +345,14 @@ def update_fdist(
         agent.tbw.add_scalars(
             'Eval/NewTaskProbs', setup.goal_dims, agent.n_samples
         )
+    if agent.wandb_run:
+        agent.wandb_run.log(
+            {
+                "global_step": agent.n_samples,
+                **{f"Eval/LearningProgress/{k}": v for k,v in lp.items()},
+                **{f"Eval/NewTaskProbs/{k}": v for k, v in setup.goal_dims.items()},
+            }
+        )
 
 
 # This evaluation function returns per-task performances
@@ -360,7 +369,10 @@ def eval_mfdim(setup, n_samples: int) -> Dict[str, float]:
     envs.seed(list(range(envs.num_envs)))
     obs = envs.reset()
     n_done = 0
-    reached_goala: Dict[str, List[bool]] = defaultdict(list)
+    reached_goala: dict[str, list[bool]] = defaultdict(list)
+    fell_over_abstr: dict[str, list[bool]] = defaultdict(list)
+    done_steps_abstr: dict[str, list[int]] = defaultdict(list)
+    reached_steps_abstr: dict[str, list[int]] = defaultdict(list)
     reward = th.zeros(envs.num_envs)
     rewards: List[th.Tensor] = []
     dones: List[th.Tensor] = [th.tensor([False] * envs.num_envs)]
@@ -443,6 +455,12 @@ def eval_mfdim(setup, n_samples: int) -> Dict[str, float]:
             key = ','.join([str(a) for a in abstractions[d]])
             reached_goala[key].append(info[d]['reached_goal'])
 
+            fell_over_abstr[key].append(info[d].get('fell_over', False))
+            num_steps = info[d]['time'] + 1
+            done_steps_abstr[key].append(num_steps)
+            if info[d]['reached_goal']:
+                reached_steps_abstr[key].append(num_steps)
+
         n_done += dones[-1].sum().item()
         if n_done >= n_episodes:
             break
@@ -466,6 +484,50 @@ def eval_mfdim(setup, n_samples: int) -> Dict[str, float]:
 
     goals_reached /= n_done
     goalsa_reached['total'] = goals_reached
+
+    mean_fell_over_abstr: dict[str, float] = {}
+    total_fell_over = []
+    for fell_over in fell_over_abstr.values():
+        total_fell_over.extend(fell_over)
+    fell_over_abstr["total"] = total_fell_over
+    for abstr, fell_overs in fell_over_abstr.items():
+        mean_fell_over_abstr[abstr] = th.tensor(fell_overs).mean(dtype=th.float32).item()
+
+    hist_done_steps_abstr: dict[str, wandb.Histogram] = {}
+    all_done_steps = []
+    for done_steps in done_steps_abstr.values():
+        all_done_steps.extend(done_steps)
+    done_steps_abstr["total"] = all_done_steps
+    for abstr, done_stepss in done_steps_abstr.items():
+        uniq_done_steps = set(done_stepss)
+        perfect_bins = sorted(uniq_done_steps | set(map(lambda x:x+1, uniq_done_steps)))
+        if len(perfect_bins) == 0:
+            hist_done_steps_abstr[abstr] = wandb.Histogram(done_stepss, num_bins=1)
+        elif len(perfect_bins) < wandb.Histogram.MAX_LENGTH:
+            # perfect bin per unique value possible
+            hist = np.histogram(done_stepss, bins=perfect_bins)
+            hist_done_steps_abstr[abstr] = wandb.Histogram(np_histogram=hist)
+        else:
+            hist_done_steps_abstr[abstr] = wandb.Histogram(done_stepss, num_bins=wandb.Histogram.MAX_LENGTH)
+
+    hist_reached_steps_abstr: dict[str, wandb.Histogram] = {}
+    all_reached_steps = []
+    for reached_steps in reached_steps_abstr.values():
+        all_reached_steps.extend(reached_steps)
+    reached_steps_abstr["total"] = all_reached_steps
+    for abstr, reached_stepss in reached_steps_abstr.items():
+        uniq_reached_steps = set(reached_stepss)
+        perfect_bins = sorted(uniq_reached_steps | set(map(lambda x:x+1, uniq_reached_steps)))
+        if len(perfect_bins) == 0:
+            hist_reached_steps_abstr[abstr] = wandb.Histogram(reached_stepss, num_bins=1)
+        elif len(perfect_bins) < wandb.Histogram.MAX_LENGTH:
+            # perfect bin per unique value possible
+            hist = np.histogram(reached_stepss, bins=perfect_bins)
+            hist_reached_steps_abstr[abstr] = wandb.Histogram(np_histogram=hist)
+        else:
+            hist_reached_steps_abstr[abstr] = wandb.Histogram(reached_stepss, num_bins=wandb.Histogram.MAX_LENGTH)
+
+
     if agent.tbw:
         agent.tbw_add_scalars('Eval/ReturnDisc', r_discounted)
         agent.tbw_add_scalars('Eval/ReturnUndisc', r_undiscounted)
@@ -476,6 +538,23 @@ def eval_mfdim(setup, n_samples: int) -> Dict[str, float]:
             'Eval/NumTrials',
             {a: len(d) for a, d in reached_goala.items()},
             agent.n_samples,
+        )
+    if agent.wandb_run:
+        agent.wandb_run.log(
+            {
+                "global_step": agent.n_samples,
+                "Eval/ReturnDisc/min": r_discounted.min(),
+                "Eval/ReturnDisc/mean": r_discounted.mean(),
+                "Eval/ReturnDisc/max": r_discounted.max(),
+                "Eval/ReturnUndisc/min": r_undiscounted.min(),
+                "Eval/ReturnUndisc/mean": r_undiscounted.mean(),
+                "Eval/ReturnUndisc/max": r_undiscounted.max(),
+                **{f"Eval/GoalsReached/{abstr}": v for abstr, v in goalsa_reached.items()},
+                **{f"Eval/NumTrials/{abstr}": len(v) for abstr, v in reached_goala.items()},
+                **{f"Eval/FellOver/{abstr}": v for abstr, v in mean_fell_over_abstr.items()},
+                **{f"Eval/DoneSteps/{abstr}": v for abstr, v in hist_done_steps_abstr.items()},
+                **{f"Eval/ReachedSteps/{abstr}": v for abstr, v in hist_reached_steps_abstr.items()},
+            }
         )
     log.info(
         f'eval done, goals reached {goals_reached:.03f}, avg return {r_discounted.mean().item():+.03f}, undisc avg {r_undiscounted.mean():+.03f} min {r_undiscounted.min():+0.3f} max {r_undiscounted.max():+0.3f}'
@@ -614,6 +693,15 @@ def train_loop_mfdim_actor(setup: TrainingSetup):
                 )
                 agent.tbw.add_scalars(
                     'Training/CtrlbEstimateR', r_cperf, setup.n_samples
+                )
+            if agent.wandb_run:
+                agent.wandb_run.log(
+                    {
+                        "global_step": setup.n_samples,
+                        **{f"Training/GoalsReached/{gs}": v for gs, v in run_cperf.items()},
+                        **{f"Training/CtrlbEstimateQ/{gs}": v for gs, v in q_cperf.items()},
+                        **{f"Training/CtrlbEstimateR/{gs}": v for gs, v in r_cperf.items()},
+                    }
                 )
 
             try:

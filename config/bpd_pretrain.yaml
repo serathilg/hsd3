@@ -24,7 +24,7 @@ task_weighting: uniform
 downrank: 0.1
 lp_new_task: 0.1
 lp_eps: 0.1
-eval_mode: running_avg
+eval_mode: rollouts
 # eval_mode: reachability
 max_steps: 5e6
 combine_after_steps: 0
