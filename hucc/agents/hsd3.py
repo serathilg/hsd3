@@ -1171,16 +1171,17 @@ class HSD3Agent(Agent):
             self.tbw_add_scalar('HealthHi/AlphaD', self._log_alpha_d.exp().item())
             wandb_data["HealthHi/AlphaD"] = self._log_alpha_d.exp().item()
         if self._n_updates % 10 == 1:
-            self.tbw.add_histogram(
-                'HealthHi/PiD',
-                th.multinomial(
-                    dist_d.probs,
-                    int(np.ceil(1000 / self._bsz)),
-                    replacement=True,
-                ).view(-1),
-                self._n_samples,
-                bins=nd,
-            )
+            if self.tbw:
+                self.tbw.add_histogram(
+                    'HealthHi/PiD',
+                    th.multinomial(
+                        dist_d.probs,
+                        int(np.ceil(1000 / self._bsz)),
+                        replacement=True,
+                    ).view(-1),
+                    self._n_samples,
+                    bins=nd,
+                )
             wandb_data["HealthHi/PiD"] = wandb.Histogram(
                 th.multinomial(
                     dist_d.probs,
@@ -1193,15 +1194,16 @@ class HSD3Agent(Agent):
                 num_bins=nd,
             )
         if self._n_updates % 100 == 1:
-            self.tbw.add_scalars(
-                'HealthHi/GradNorms',
-                {
-                    k: v.grad.norm().item()
-                    for k, v in self._model.named_parameters()
-                    if v.grad is not None
-                },
-                self.n_samples,
-            )
+            if self.tbw:
+                self.tbw.add_scalars(
+                    'HealthHi/GradNorms',
+                    {
+                        k: v.grad.norm().item()
+                        for k, v in self._model.named_parameters()
+                        if v.grad is not None
+                    },
+                    self.n_samples,
+                )
             wandb_data |= {
                 f"HealthHi/GradNorms/{k}": v.grad.norm().item()
                 for k, v in self._model.named_parameters()

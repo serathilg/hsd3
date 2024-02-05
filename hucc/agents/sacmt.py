@@ -516,21 +516,22 @@ class SACMTAgent(Agent):
                 self.tbw_add_scalar('Health/MeanAlpha', mean_alpha)
                 wandb_data["Health/MeanAlpha"] = mean_alpha
         if self._n_updates % 100 == 1:
-            self.tbw.add_scalars(
-                'Health/GradNorms',
-                {
-                    k: v.grad.norm().item()
-                    for k, v in self._model.named_parameters()
-                    if v.grad is not None
-                },
-                self.n_samples,
-            )
-            for i in range(a.shape[1]):
-                self.tbw.add_histogram(
-                    f'Health/PolicyA{i}', a[i][:100], self.n_samples
+            if self.tbw:
+                self.tbw.add_scalars(
+                    'Health/GradNorms',
+                    {
+                        k: v.grad.norm().item()
+                        for k, v in self._model.named_parameters()
+                        if v.grad is not None
+                    },
+                    self.n_samples,
                 )
-            self.tbw.add_histogram('Health/Q1', q1[:100], self.n_samples)
-            self.tbw.add_histogram('Health/Q2', q2[:100], self.n_samples)
+                for i in range(a.shape[1]):
+                    self.tbw.add_histogram(
+                        f'Health/PolicyA{i}', a[i][:100], self.n_samples
+                    )
+                self.tbw.add_histogram('Health/Q1', q1[:100], self.n_samples)
+                self.tbw.add_histogram('Health/Q2', q2[:100], self.n_samples)
             wandb_data |= (
                 {
                     f"Health/GradNorms/{k}": v.grad.norm().item()
@@ -560,23 +561,25 @@ class SACMTAgent(Agent):
                     wandb_data[f"Health/AbsTDError1/{task}"] = tde1
                     wandb_data[f"Health/AbsTDError2/{task}"] = tde2
                     wandb_data[f"Health/AbsTDErrorMean/{task}"] = tderrs[task]
-                self.tbw.add_scalars(
-                    'Health/AbsTDErrorMean', tderrs, self._n_samples
-                )
+                if self.tbw:
+                    self.tbw.add_scalars(
+                        'Health/AbsTDErrorMean', tderrs, self._n_samples
+                    )
                 for task, err in tderrs.items():
                     self._avg_tderr[task] *= 1.0 - self._avg_tderr_alpha
                     self._avg_tderr[task] += self._avg_tderr_alpha * err
 
-        self.tbw.add_scalars(
-            'Agent/SampledTasks',
-            {self._key_to_task[k]: v for k, v in self._sampled_tasks.items()},
-            self._n_samples,
-        )
-        self.tbw.add_scalars(
-            'Agent/SamplesPerTask',
-            {self._key_to_task[k]: v for k, v in self._task_samples.items()},
-            self._n_samples,
-        )
+        if self.tbw:
+            self.tbw.add_scalars(
+                'Agent/SampledTasks',
+                {self._key_to_task[k]: v for k, v in self._sampled_tasks.items()},
+                self._n_samples,
+            )
+            self.tbw.add_scalars(
+                'Agent/SamplesPerTask',
+                {self._key_to_task[k]: v for k, v in self._task_samples.items()},
+                self._n_samples,
+            )
 
         wandb_data |= {
             f"Agent/SampledTasks/{self._key_to_task[k]}": v

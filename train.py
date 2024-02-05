@@ -353,8 +353,9 @@ def eval(setup: TrainingSetup, n_samples: int = -1):
             .T.to(not_done.device)
             .masked_select(not_done[:, :-1])
         )
-        agent.tbw_add_scalar('Eval/EntropyDMean', ent_d.mean(), n_samples)
-        agent.tbw.add_histogram('Eval/EntropyD', ent_d, n_samples, bins=20)
+        if agent.tbw:
+            agent.tbw_add_scalar('Eval/EntropyDMean', ent_d.mean(), n_samples)
+            agent.tbw.add_histogram('Eval/EntropyD', ent_d, n_samples, bins=20)
         wandb_data |= {
             "Eval/EntropyDMean": ent_d.mean().item(),
             "Eval/EntropyD": wandb.Histogram(ent_d.detach().cpu().numpy(), num_bins=20)
