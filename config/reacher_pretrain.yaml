@@ -12,11 +12,15 @@ hydra:
 horizon: 72
 idle_steps: 0
 robot: Reacher
-features: joint_value
-feature_dims: all
+features: jval_jvald_jvel_fpos_fposd_fvel
+# feature_dims: 5#6#7#8#9 # value_delta
+# feature_dims: 5#6#7#8#9#10#11#12#13#14 # value_delta + vel
+# feature_dims: 15#16#19#20 # fingerpos + fingervel
+# feature_dims: 17#18 # fingerpos_delta
+feature_dims: 17#18#19#20 # fingerpos_delta + fingervel
 feature_rank: 1
 feature_rank_max: 99
-ctrl_eps: 0.7
+ctrl_eps: 1.0
 precision: 0.1
 max_new_tasks: 1000
 task_weighting: uniform
@@ -24,7 +28,7 @@ downrank: 0.1
 lp_new_task: 0.1
 lp_eps: 0.1
 eval_mode: rollouts
-max_steps: 5e7
+max_steps: 1e8
 combine_after_steps: 0
 backprop_fallover: false
 estimate_joint_spaces: null
@@ -33,11 +37,11 @@ checkpoint_path: checkpoint-lo.pt
 
 eval:
   episodes_per_task: 50
-  interval: 100_000
+  interval: 1e6
   video:
     record_all: false
 video: 
-  interval: 500_000
+  interval: 1e6
 
 distributed:
   num_actors: 1

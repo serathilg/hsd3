@@ -16,6 +16,8 @@ from hucc.envs.features import (
     JointsTaskReacherFeaturizer,
     JointValueReacherFeaturizer,
     JointValueVelReacherFeaturizer,
+    JointValueValuedeltaVelFingerPosPosdeltaVelReacherFeaturizer,
+    FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
 )
 
 log = logging.getLogger(__name__)
@@ -30,10 +32,16 @@ class FancyGymTask(Enum):
 class _FGFeature(Enum):
     JOINT_VALUE = "joint_value"
     JOINT_VALUE_VEL = "joint_value_vel"
+    JOINT_VALUE_VALUEDELTA_VEL_FINGERPOS_POSDELTA_VEL = (
+        "jval_jvald_jvel_fpos_fposd_fvel"
+    )
     JOINTS = "joints"
     JOINTS_TASK = "joints_task"
     FINGERPOS = "fingerpos"
     FINGERPOS_DELTA = "fingerpos_delta"
+    FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ = (
+        "fpos_fposd_fvel_feuler_fswitwi_fposboxz"
+    )
 
 
 class _FGRobot(Enum):
@@ -47,12 +55,14 @@ _FANCY_GYM_FEATURIZER = {
         _FGFeature.JOINTS_TASK: JointsTaskReacherFeaturizer,
         _FGFeature.JOINT_VALUE: JointValueReacherFeaturizer,
         _FGFeature.JOINT_VALUE_VEL: JointValueVelReacherFeaturizer,
+        _FGFeature.JOINT_VALUE_VALUEDELTA_VEL_FINGERPOS_POSDELTA_VEL: JointValueValuedeltaVelFingerPosPosdeltaVelReacherFeaturizer,
     },
     _FGRobot.FRANKA: {
         _FGFeature.JOINTS: JointsFrankaFeaturizer,
         _FGFeature.JOINTS_TASK: JointsTaskFrankaFeaturizer,
         _FGFeature.FINGERPOS: FingerPosFrankaFeaturizer,
         _FGFeature.FINGERPOS_DELTA: FingerPosFrankaFeaturizer,
+        _FGFeature.FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ: FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
     },
 }
 

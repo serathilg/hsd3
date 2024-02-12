@@ -26,6 +26,8 @@ g_delta_feats = {
 }
 
 
+# TODO: why does index g[0] exist if it seems to be dropped?
+# TODO: add def_ranges with many inputs such that each stores its delta/twist which are concatenated
 def def_ranges(
     inp: List[Tuple],
     delta_feats: List[int] = None,
@@ -65,21 +67,63 @@ g_goal_ranges_bodyfeet_humanoid: List[Tuple] = [
     (11, 'right_foot:pz', -1.00, +0.20),
 ]
 
+# franka dt = 2ms, frame_skip = 10, step = 20ms, 100 steps -> 2s
 g_goal_ranges_fingerpos_franka: List[Tuple] = [
-    # within frame above desk
-    (0, 'tipx', -0.30, +0.70),
-    (1, 'tipy', -1.00, +1.00),
-    (2, 'tipz', +0.00, +1.20),
+    # box position bound
+    (0, 'tipx', +0.20, +0.70),
+    (1, 'tipy', -0.55, +0.55),
+    (2, 'tipz', +0.01, +0.20),
+]
+
+g_goal_ranges_fingerposboxz_franka: List[Tuple] = [
+    # limit z into box height,
+    # box bottom is 0.02 thick, rest on plane at -0.02 -> min 0
+    # box side are 0.09 high, start 0.0035 + 0.01 above bottom -> max -0.02 + 0.0135 + 0.09 = 0.0835
+    # some slack -> z in [0.01, 0.07]
+    (0, 'tipz', +0.01, +0.07),
+]
+
+g_goal_ranges_fingervel_franka: List[Tuple] = [
+    # covered x,y distance < 0.3, 0.9 (even random_init), 2s time => 0.6/s, 1.8/s enough
+    # covered z distance < 0.2 (above box and in), 2s time => 0.4/s enough
+    (0, 'tipx_vel', -0.6, +0.6),
+    (1, 'tipy_vel', -1.8, +1.8),
+    (2, 'tipz_vel', -0.4, +0.4),
 ]
 
 g_goal_ranges_fingerpos_delta_franka: List[Tuple] = [
-    (0, 'tipx', -0.20, +0.20),
-    (1, 'tipy', -0.20, +0.20),
-    (2, 'tipz', -0.10, +0.10),
+    # speed 0.6,1.8,0.4 /s enough, 20ms step, 0.012,0.036,0.008/step, interval 5 => 0.06,0.18,0.04
+    (0, 'tipx_delta', -0.06, +0.06),
+    (1, 'tipy_delta', -0.18, +0.18),
+    (2, 'tipz_delta', -0.04, +0.04),
 ]
 
+g_goal_ranges_fingereuler_franka: List[Tuple] = [
+    # extrinsic xyz, scipy.spatial.transform.Rotation.as_euler
+    # TODO: restrict ranges to allowed cone, this way most goals unreachable,
+    # because they are considered invalid.
+    # NOTE: cant use quaternions, as no normalization after random sampling and
+    # difference l2 is not the geodesic distance of quaternions (similar problems
+    # with gimbal lock of euler angles as well)
+    (0, 'eulerx', -1.0*np.pi, +1.0*np.pi),
+    (1, 'eulery', -0.5*np.pi, +0.5*np.pi),
+    (2, 'eulerz', -1.0*np.pi, +1.0*np.pi),
+]
+
+g_goal_ranges_fingerswingtwist_franka: List[Tuple] = [
+    # decompose finger rotation into twist around z, then swing around axis in xy plane
+    # twist angle is "from above" in xy plane, swing gives "tilt" of rod.
+    # unrotated rod points up, so inital vertical rod (with tip below) has 180deg swing
+    # target swing in 180+-30 deg for upright
+    # NOTE: twist is undefined if rod vertical, i.e. swing 180deg, defaults to 0 twist,
+    # but twist angle is consistent else e.g. for swing 179 and 181
+    (0, 'swingxy', np.pi - np.pi/6, np.pi + np.pi/6),
+    (1, 'twistz', +0.0*np.pi, +2.0*np.pi),
+]
+
+# reacher dt = 10ms, frame_skip = 2, step=20ms, 200 steps -> 4s
 g_goal_ranges_joint_value_reacher: List[Tuple] = [
-    # cover full 360 degree range, invalid states avoid prevent spinning
+    # cover full 360 degree range
     (0, 'joint0', -1.0*np.pi, +1.0*np.pi), 
     (1, 'joint1', -1.0*np.pi, +1.0*np.pi), 
     (2, 'joint2', -1.0*np.pi, +1.0*np.pi),
@@ -87,14 +131,39 @@ g_goal_ranges_joint_value_reacher: List[Tuple] = [
     (4, 'joint4', -1.0*np.pi, +1.0*np.pi),
 ]
 
-g_goal_ranges_joint_value_vel_reacher: List[Tuple] = g_goal_ranges_joint_value_reacher + [
-    # TODO: figure out working vel ranges that neither blow up reward because they are too tight
-    # nor are frequently impossible to reach because they are too large.
-    (len(g_goal_ranges_joint_value_reacher) + 0, 'vel0', -0.3*np.pi, +0.3*np.pi),
-    (len(g_goal_ranges_joint_value_reacher) + 1, 'vel1', -0.3*np.pi, +0.3*np.pi),
-    (len(g_goal_ranges_joint_value_reacher) + 2, 'vel2', -0.3*np.pi, +0.3*np.pi),
-    (len(g_goal_ranges_joint_value_reacher) + 3, 'vel3', -0.3*np.pi, +0.3*np.pi),
-    (len(g_goal_ranges_joint_value_reacher) + 4, 'vel4', -0.3*np.pi, +0.3*np.pi),
+g_goal_ranges_joint_vel_reacher: List[Tuple] = [
+    # distance from reset < pi, 4s time => pi/s enough
+    (0, 'vel0', -1.0*np.pi, +1.0*np.pi),
+    (1, 'vel1', -1.0*np.pi, +1.0*np.pi),
+    (2, 'vel2', -1.0*np.pi, +1.0*np.pi),
+    (3, 'vel3', -1.0*np.pi, +1.0*np.pi),
+    (4, 'vel4', -1.0*np.pi, +1.0*np.pi),
+]
+
+g_goal_ranges_joint_value_delta_reacher: List[Tuple] = [
+    # speed pi/s enough, 20ms step, 0.063/step, interval 5 => 0.1pi
+    (0, 'joint0_delta', -0.1*np.pi, +0.1*np.pi), 
+    (1, 'joint1_delta', -0.1*np.pi, +0.1*np.pi), 
+    (2, 'joint2_delta', -0.1*np.pi, +0.1*np.pi),
+    (3, 'joint3_delta', -0.1*np.pi, +0.1*np.pi),
+    (4, 'joint4_delta', -0.1*np.pi, +0.1*np.pi),
+]
+g_goal_ranges_fingerpos_reacher: List[Tuple] = [
+    # corners of box constraint are unreachable but entire reach covered
+    (0, 'tipx', -0.5, +0.5), 
+    (1, 'tipy', -0.5, +0.5), 
+]
+
+g_goal_ranges_fingervel_reacher: List[Tuple] = [
+    # distance from reset < 1, 4s time => 1/s enough
+    (0, 'tipx_vel', -1.0, +1.0), 
+    (1, 'tipy_vel', -1.0, +1.0), 
+]
+
+g_goal_ranges_fingerpos_delta_reacher: List[Tuple] = [
+    # speed 1/s enough, 20ms step, 0.02/step, interval 5 => 0.1
+    (0, 'tipx_delta', -0.1, +0.1), 
+    (1, 'tipy_delta', -0.1, +0.1), 
 ]
 
 g_goal_spaces_bodyfeet: Dict[str, Dict[str, List]] = {
@@ -112,12 +181,38 @@ g_goal_spaces_fingerpos_delta: Dict[str, Dict[str, List]] = {
     'Franka': def_ranges(g_goal_ranges_fingerpos_delta_franka, [0, 1, 2]),
 }
 
+
+g_goal_spaces_fingerpos_fingerposdelta_fingervel_fingereuler_fingerswingtwist_fingerposboxz: Dict[str, Dict[str, List]] = {
+    "Franka": def_ranges(
+        g_goal_ranges_fingerpos_franka # 3
+        + g_goal_ranges_fingerpos_delta_franka # 3 delta
+        + g_goal_ranges_fingervel_franka # 3
+        + g_goal_ranges_fingereuler_franka # 3 twist
+        + g_goal_ranges_fingerswingtwist_franka # 2 twist
+        + g_goal_ranges_fingerposboxz_franka, # 1
+        delta_feats=[3,4,5],
+        twist_feats=[9,10,11, 12,13],
+    ),
+}
+
+
 g_goal_spaces_joint_value: Dict[str, Dict[str, List]] = {
-    'Reacher': def_ranges(g_goal_ranges_joint_value_reacher), # delta_feats?
+    'Reacher': def_ranges(g_goal_ranges_joint_value_reacher),
 }
 
 g_goal_spaces_joint_value_vel: Dict[str, Dict[str, List]] = {
-    'Reacher': def_ranges(g_goal_ranges_joint_value_vel_reacher), # delta_feats?
+    'Reacher': def_ranges(g_goal_ranges_joint_value_reacher + g_goal_ranges_joint_vel_reacher),
+}
+
+
+g_goal_spaces_jointvalue_jointvaluedelta_jointvel_fingerpos_fingerposdelta_fingervel: Dict[str, Dict[str, List]] = {
+    "Reacher": def_ranges(g_goal_ranges_joint_value_reacher # 5
+                          + g_goal_ranges_joint_value_delta_reacher # 5 delta
+                          + g_goal_ranges_joint_vel_reacher # 5
+                          + g_goal_ranges_fingerpos_reacher # 2
+                          + g_goal_ranges_fingerpos_delta_reacher # 2 delta
+                          + g_goal_ranges_fingervel_reacher, # 2
+                          delta_feats= [5,6,7,8,9, 17,18]),
 }
 
 g_goal_spaces: Dict[str, Dict[str, Dict[str, List]]] = {
@@ -125,8 +220,10 @@ g_goal_spaces: Dict[str, Dict[str, Dict[str, List]]] = {
     'bodyfeet-relz': g_goal_spaces_bodyfeet,
     'fingerpos': g_goal_spaces_fingerpos,
     'fingerpos_delta': g_goal_spaces_fingerpos_delta,
+    'fpos_fposd_fvel_feuler_fswitwi_fposboxz': g_goal_spaces_fingerpos_fingerposdelta_fingervel_fingereuler_fingerswingtwist_fingerposboxz,
     'joint_value': g_goal_spaces_joint_value,
     'joint_value_vel': g_goal_spaces_joint_value_vel,
+    'jval_jvald_jvel_fpos_fposd_fvel': g_goal_spaces_jointvalue_jointvaluedelta_jointvel_fingerpos_fingerposdelta_fingervel,
 }
 
 

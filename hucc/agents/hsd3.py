@@ -23,6 +23,7 @@ from torch.nn import functional as F
 import wandb
 from hucc import ReplayBuffer
 from hucc.agents import Agent
+from hucc.envs.ctrlgs import map_cyclic_goal_space
 from hucc.envs.fancy_gym_ctrlgs import FancyGymCtrlgsPreTrainingEnv
 from hucc.envs.goal_spaces import subsets_task_map
 from hucc.models import TracedModule
@@ -122,15 +123,21 @@ class HiToLoInterface:
         self.gobs_names = dummy_env.goal_featurizer.feature_names()
         self.goal_space = dummy_env.observation_space.spaces['desired_goal']
         self.delta_feats = dummy_env.goal_space['delta_feats']
-        self.twist_feats = [
-            self.task_map[str(f)] for f in dummy_env.goal_space['twist_feats']
-        ]
+        self.proj_pi = th.tensor(dummy_env.proj_pi, dtype=th.float32, device=cfg.device)
         self.psi = dummy_env.psi
         self.offset = dummy_env.offset
         self.psi_1 = dummy_env.psi_1
         self.offset_1 = dummy_env.offset_1
         self.obs_mask = dummy_env.obs_mask
         self.task_idx = dummy_env.task_idx
+        # need to know the goal_space index and twf number of the twfs which are not disabled (i.e. in task_idx)
+        (
+            twfs_in_goal,
+            self.enabled_twist_in_goal_idxs,
+            self.enabled_twist_in_twf_idxs,
+        ) = np.intersect1d(
+            self.task_idx, dummy_env.goal_space['twist_feats'], assume_unique=True, return_indices=True
+        )
         gsdim = self.psi.shape[0]
         dummy_env.close()
 
@@ -264,19 +271,11 @@ class HiToLoInterface:
         task_rep = self.task.index_select(0, task)
         # Give desired delta to ground truth
         goal = bproj_goal[:, self.task_idx] - gs_obs[:, self.task_idx]
-        if len(self.twist_feats) > 0:
-            twf = self.twist_feats
-            goal[:, twf] = (
-                th.remainder(
-                    (
-                        bproj_goal[:, self.task_idx][:, twf]
-                        - gs_obs[:, self.task_idx][:, twf]
-                    )
-                    + np.pi,
-                    2 * np.pi,
-                )
-                - np.pi
-            )
+        goal[:, self.enabled_twist_in_goal_idxs] = map_cyclic_goal_space(
+            bproj_goal[:, self.task_idx][:, self.enabled_twist_in_goal_idxs]
+            - gs_obs[:, self.task_idx][:, self.enabled_twist_in_goal_idxs],
+            self.proj_pi[self.enabled_twist_in_twf_idxs],
+        )
         goal = goal * task_rep
         return {
             'desired_goal': goal,
@@ -290,20 +289,14 @@ class HiToLoInterface:
             - next_gs_obs[:, self.task_idx]
             + action_hi['desired_goal']
         ) * action_hi['task']
-        if len(self.twist_feats) > 0:
-            twf = self.twist_feats
-            upd[:, twf] = (
-                th.remainder(
-                    (
-                        gs_obs[:, self.task_idx][:, twf]
-                        - next_gs_obs[:, self.task_idx][:, twf]
-                        + action_hi['desired_goal'][:, twf]
-                    )
-                    + np.pi,
-                    2 * np.pi,
-                )
-                - np.pi
-            ) * action_hi['task'][:, twf]
+        upd[:, self.enabled_twist_in_goal_idxs] = (
+            map_cyclic_goal_space(
+                gs_obs[:, self.task_idx][:, self.enabled_twist_in_goal_idxs]
+                - next_gs_obs[:, self.task_idx][:, self.enabled_twist_in_goal_idxs]
+                + action_hi["desired_goal"][:, self.enabled_twist_in_goal_idxs],
+                self.proj_pi[self.enabled_twist_in_twf_idxs],
+            )
+        ) * action_hi["task"][:, self.enabled_twist_in_goal_idxs]
         return upd
 
     def observation_lo(self, o_obs, action_hi):

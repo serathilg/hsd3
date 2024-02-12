@@ -12,9 +12,14 @@ hydra:
 horizon: 72
 idle_steps: 0
 robot: Franka
-# features: fingerpos
-features: fingerpos_delta
-feature_dims: all
+features: fpos_fposd_fvel_feuler_fswitwi_fposboxz
+# feature_dims: 3#4#5#12#13 # posdelta, swingtwist
+# feature_dims: 3#4#5#6#7#8 # posdelta, vel
+# feature_dims: 3#4#5#6#7#8#12#13 # posdelta, vel, swingtwist
+# feature_dims: 3+14#4+14#14 # posdeltaxy + boxz
+# feature_dims: 3+14#4+14#12+14#13+14#14 # posdeltaxy, swingtwist + boxz
+# feature_dims: 3+14#4+14#6+14#7+14#14 # posdeltaxy, velxy + boxz
+feature_dims: 3+14#4+14#6+14#7+14#12+14#13+14#14 # posdeltaxy, velxy, swingtwist + boxz
 feature_rank: 1
 feature_rank_max: 99
 ctrl_eps: 1.0
@@ -26,7 +31,7 @@ lp_new_task: 0.1
 lp_eps: 0.1
 eval_mode: rollouts
 # eval_mode: reachability
-max_steps: 5e6
+max_steps: 1e8
 combine_after_steps: 0
 backprop_fallover: false
 estimate_joint_spaces: null
@@ -35,11 +40,11 @@ checkpoint_path: checkpoint-lo.pt
 
 eval:
   episodes_per_task: 50
-  interval: 500_000
+  interval: 1e6
   video: null # for box push dense, eval video crashes iff env.eval_procs > 1 i.e. env.eval_args.fork == true. TODO: debug
     # record_all: false
 video:
-  interval: 500_000
+  interval: 1e6
 
 distributed:
   num_actors: 1
@@ -73,7 +78,7 @@ agent:
   gamma: auto_horizon
   samples_per_update: 1000
   rpbuf_size: 3e6
-  num_updates: 50
+  num_updates: 100
   batch_size: 256
   randexp_samples: 10000
   warmup_samples: 10000

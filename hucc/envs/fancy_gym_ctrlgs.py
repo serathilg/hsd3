@@ -93,18 +93,7 @@ class FancyGymCtrlgsPreTrainingEnv(FancyGymAsBiskSingleRobotEnv, CtrlgsPreTraini
             for k, v in task_map.items():
                 self.task_idx[v] = int(k)
 
-            if len(self.goal_space["twist_feats"]) > 0:
-                negpi = self.proj(
-                    -np.pi * np.ones(gsdim), self.goal_space["twist_feats"]
-                )
-                pospi = self.proj(
-                    np.pi * np.ones(gsdim), self.goal_space["twist_feats"]
-                )
-                if not np.allclose(-negpi, pospi):
-                    # This could be supported by more elobarte delta computation
-                    # logic in step()
-                    raise ValueError("Twist feature ranges not symmetric")
-                self.proj_pi = pospi
+            self.proj_pi = np.pi * self.psi[self.goal_space['twist_feats'], self.goal_space['twist_feats']]
 
             if backproject_goal:
                 all_feats = list(range(gsdim))
@@ -190,22 +179,7 @@ class FancyGymCtrlgsPreTrainingEnv(FancyGymAsBiskSingleRobotEnv, CtrlgsPreTraini
 
     def step(self, action):
         # identical to Ctrlgs, except for redirection of step to FancyGymAsBiskSingleRobotEnv
-        def distance_to_goal():
-            gs = self.proj(self.goal_featurizer(), self._features)
-            d = self.goal - gs
-            for i, f in enumerate(self._features):
-                if f in self.goal_space["twist_feats"]:
-                    # Wrap around projected pi/-pi for distance
-                    d[i] = (
-                        np.remainder(
-                            (self.goal[i] - gs[i]) + self.proj_pi,
-                            2 * self.proj_pi,
-                        )
-                        - self.proj_pi
-                    )
-            return np.linalg.norm(d, ord=2)
-
-        d_prev = distance_to_goal()
+        d_prev = self.distance_to_goal()
         if self._is_fancy_gym:
             ########## only this is different to regular Ctrlgs ##########
             next_obs, reward, done, info = FancyGymAsBiskSingleRobotEnv.step(
@@ -213,7 +187,7 @@ class FancyGymCtrlgsPreTrainingEnv(FancyGymAsBiskSingleRobotEnv, CtrlgsPreTraini
             )
         else:
             next_obs, reward, done, info = BiskSingleRobotEnv.step(self, action)
-        d_new = distance_to_goal()
+        d_new = self.distance_to_goal()
 
         info["potential"] = d_prev - d_new
         info["distance"] = d_new

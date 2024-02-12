@@ -3,28 +3,28 @@ defaults:
   - agent: hsd3
   - _self_
 
-max_steps: 1e7
+max_steps: 15e6
 robot: Reacher
-goal_space: joint_value
+goal_space: jval_jvald_jvel_fpos_fposd_fvel
 subsets: from_lo
 action_interval: 5
 eps: 1.0
 auto_adapt: true
 
 eval:
-  interval: 50_000
+  interval: 15e4
   metrics:
     reward_dist: sum:default
     reward_ctrl: sum:default
 
 video: 
-  interval: 50_000
+  interval: 15e4
 visdom:
   offline: true
 
 env:
   name: BiskReacher5d-v0
-  train_procs: 5
+  train_procs: 1
   eval_procs: 50
   args:
     robot: ${robot}

@@ -9,16 +9,16 @@ hydra:
     dir: ./outputs/${hydra.job.name}.${robot}.${goal_space}.${subsets}.${now:%Y-%m-%d-%H-%M-%S}/
 
 
-max_steps: 5e6
+max_steps: 15e6
 robot: Franka
-goal_space: fingerpos_delta
+goal_space: fpos_fposd_fvel_feuler_fswitwi_fposboxz
 subsets: from_lo
 action_interval: 5
 eps: 1.0
 auto_adapt: true
 
 eval:
-  interval: 50_000
+  interval: 15e4
   metrics:
     is_success: final:default
     box_goal_pos_dist: final:default
@@ -27,7 +27,7 @@ eval:
   video:  null # for box push dense, eval video crashes iff env.eval_procs > 1 i.e. env.eval_args.fork == true. TODO: debug
 
 video: 
-  interval: 50_000
+  interval: 15e4
 visdom:
   offline: true
 
