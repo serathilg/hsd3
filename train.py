@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import shutil
+import warnings
 from collections import defaultdict
 from copy import copy
 from pathlib import Path
@@ -19,20 +20,21 @@ import gym
 import hydra
 import numpy as np
 import torch as th
+import wandb
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from visdom import Visdom
+from wandb.sdk.wandb_run import Run
 
 import hucc
-import wandb
 from hucc.agents.utils import discounted_bwd_cumsum_
 from hucc.hashcount import HashingCountReward
 from hucc.spaces import th_flatten
-from wandb.sdk.wandb_run import Run
 
 log = logging.getLogger(__name__)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 class TrainingSetup(SimpleNamespace):
@@ -335,6 +337,7 @@ def eval(setup: TrainingSetup, n_samples: int = -1):
         if isinstance(v, th.Tensor):
             agent.tbw_add_scalars(f'Eval/{k}', v, agg, n_samples)
             wandb_data |= {f"Eval/{k}/{a}": getattr(v, a)().item() for a in agg}
+            log.info(f"{k:<20}"+ "".join(f"{a}: {getattr(v, a)().item():>12.3f}" for a in agg))
         else:
             agent.tbw_add_scalars(
                 f'Eval/{k}', th.tensor(v).float(), agg, n_samples
@@ -342,6 +345,7 @@ def eval(setup: TrainingSetup, n_samples: int = -1):
             wandb_data |= {
                 f"Eval/{k}/{a}": getattr(th.tensor(v).float(), a)().item() for a in agg
             }
+            log.info(f"{k:<20}"+ "".join(f"{a}: {getattr(th.tensor(v).float(), a)().item():>12.3f}" for a in agg))
 
     log.info(
         f'eval done, avg len {ep_len.mean().item():.01f}, avg return {r_discounted.mean().item():+.03f}, undisc avg {r_undiscounted.mean():+.03f} min {r_undiscounted.min():+0.3f} max {r_undiscounted.max():+0.3f}'

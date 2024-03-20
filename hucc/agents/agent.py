@@ -130,7 +130,9 @@ class Agent:
         training = data['_training']
 
         def load(val, data):
-            if isinstance(val, nn.Module) or isinstance(val, optim.Optimizer):
+            if isinstance(val, nn.Module):
+                val.load_state_dict(data, strict=False)
+            elif isinstance(val, optim.Optimizer):
                 val.load_state_dict(data)
             elif isinstance(val, SimpleNamespace):
                 for k, v in val.__dict__.items():
