@@ -423,8 +423,8 @@ class HSD3Agent(Agent):
         self._action_space_d = self._iface.action_space_hi[self._dkey]
 
         self._model = model
-        self._model_pi_c = th.compile(model.hi.pi_subgoal, mode="reduce-overhead")
-        self._model_pi_d = th.compile(model.hi.pi_task, mode="reduce-overhead")
+        self._model_pi_c = model.hi.pi_subgoal
+        self._model_pi_d = model.hi.pi_task
         self._optim_pi_c = optim.hi.pi_subgoal
         self._optim_pi_d = optim.hi.pi_task
         self._optim = optim
@@ -881,7 +881,6 @@ class HSD3Agent(Agent):
             c_batchmask = self._c_batchmask.narrow(0, 0, bsz * nd)
 
             dist_d = self._model_pi_d(obs_p)
-            dist_d = D.Categorical(logits=dist_d.logits) # copy for torch.compile
             action_c, log_prob_c = act_logp_c(obs_p, self._action_c_mask)
 
             if self._expectation_d == -1 and nd > 1:
