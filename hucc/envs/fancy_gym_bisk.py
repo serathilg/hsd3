@@ -27,6 +27,7 @@ class FancyGymTask(Enum):
     SANDBOX = auto()
     REACHER = auto()
     BOX_PUSH_DENSE = auto()
+    BOX_PUSH_TEMPORAL_SPARSE = auto()
 
 
 class _FGFeature(Enum):
@@ -105,6 +106,8 @@ class FancyGymAsBiskSingleRobotEnv(BiskSingleRobotEnv):
             self.env = fancy_gym.make("FrankaRodSandbox-v0", seed=None)
         elif r == _FGRobot.FRANKA and task == FancyGymTask.BOX_PUSH_DENSE:
             self.env = fancy_gym.make("BoxPushingDense-v0", seed=None)
+        elif r == _FGRobot.FRANKA and task == FancyGymTask.BOX_PUSH_TEMPORAL_SPARSE:
+            self.env = fancy_gym.make("BoxPushingTemporalSparse-v0", seed=None)
         else:
             raise NotImplementedError(
                 f"FancyGymAsBiskSingleRobotEnv: {robot=}, {task=}"
