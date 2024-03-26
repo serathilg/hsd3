@@ -750,7 +750,7 @@ class HSD3Agent(Agent):
         # Ignore terminal state if we have a timeout
         fell_over = th.zeros_like(done, device='cpu')
         for i in range(len(info)):
-            if 'TimeLimit.truncated' in info[i]:
+            if info[i].get('TimeLimit.truncated', False):
                 # log.info('Ignoring timeout')
                 done[i] = False
             elif 'fell_over' in info[i]:
