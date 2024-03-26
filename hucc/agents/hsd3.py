@@ -100,7 +100,7 @@ class HiToLoInterface:
         ng = max(max(map(int, s.split(','))) for s in self.subsets) + 1
         task_space = gym.spaces.Discrete(n_subsets)
         subgoal_space = gym.spaces.Box(
-            low=-1, high=1, shape=(ng,), dtype=np.float32
+            low=-1, high=1, shape=(len(self.task_map),), dtype=np.float32
         )
         self.action_space_hi = gym.spaces.Dict(
             [('task', task_space), ('subgoal', subgoal_space)]
@@ -475,10 +475,10 @@ class HSD3Agent(Agent):
         self._uniform_entropy_d = np.log(self._action_space_d.n)
         log_alpha_d = np.log(cfg.alpha_d)
         if cfg.optim_alpha_d is None:
-            self._log_alpha_d = th.tensor(log_alpha_d)
+            self._log_alpha_d = th.tensor(log_alpha_d, device=cfg.device, dtype=th.float32)
             self._optim_alpha_d = None
         else:
-            self._log_alpha_d = th.tensor(log_alpha_d, requires_grad=True)
+            self._log_alpha_d = th.tensor(log_alpha_d, device=cfg.device, dtype=th.float32, requires_grad=True)
             self._optim_alpha_d = hydra.utils.instantiate(
                 cfg.optim_alpha_d, [self._log_alpha_d]
             )
@@ -525,10 +525,11 @@ class HSD3Agent(Agent):
         self._obs_keys = list(self._obs_space.spaces.keys())
 
         self._q_hi = self._model.hi.q
+        self._q_hi_target = self._target.hi.q
         self._pi_lo_det = DeterministicLo(self._model.lo.pi)
         if cfg.trace:
             self._q_hi = TracedModule(self._q_hi)
-            self._target.hi.q = TracedModule(self._target.hi.q)
+            self._q_hi_target = TracedModule(self._q_hi_target)
             self._pi_lo_det = TracedModule(self._pi_lo_det)
 
         # cache frequent access
@@ -580,7 +581,7 @@ class HSD3Agent(Agent):
         actions = [
             self._iface.action_space_hi.sample() for _ in range(env.num_envs)
         ]
-        device = list(self._model.parameters())[0].device
+        device = next(self._model.parameters()).device
         action_d = th.tensor(
             [a[self._dkey] for a in actions], dtype=th.int64, device=device
         )
@@ -891,7 +892,7 @@ class HSD3Agent(Agent):
                     obs_pe[k] = v.repeat_interleave(nd, dim=0)
                 obs_pe[self._dkey] = d_batchin
                 obs_pe[self._ckey] = action_c.view(d_batchin.shape[0], -1)
-                q_t = th.min(self._target.hi.q(obs_pe), dim=-1).values
+                q_t = th.min(self._q_hi_target(obs_pe), dim=-1).values
 
                 q_t = q_t.view(bsz, nd)
                 log_prob_c = log_prob_c.view(bsz, nd)
@@ -918,7 +919,7 @@ class HSD3Agent(Agent):
                 log_prob_c = log_prob_c.gather(1, action_d)
                 obs_pe[self._ckey] = action_c
 
-                q_t = th.min(self._target.hi.q(obs_pe), dim=-1).values.view(
+                q_t = th.min(self._q_hi_target(obs_pe), dim=-1).values.view(
                     -1, nds
                 )
                 log_prob_c = log_prob_c.view(-1, nds)
@@ -934,9 +935,7 @@ class HSD3Agent(Agent):
 
             return reward + batch['gamma_exp'] * not_done * v_est
 
-        for p in self._model.parameters():
-            mdevice = p.device
-            break
+        mdevice = next(self._model.parameters()).device
         bsz = self._bsz
         nd = self._action_space_d.n
         nds = self._expectation_d
@@ -1119,7 +1118,7 @@ class HSD3Agent(Agent):
                 alpha_loss_d = (
                     self._log_alpha_d.exp()
                     * (
-                        dist_d.entropy().mean().cpu() - self._target_entropy_d
+                        dist_d.entropy().mean() - self._target_entropy_d
                     ).detach()
                 )
                 self._optim_alpha_d.zero_grad()

@@ -266,6 +266,51 @@ class SkipDoubleQNetwork(nn.Module):
         y = self.lN(y)
         return y
 
+class SkipDoubleQSepNetwork(nn.Module):
+    '''
+    Model two Q-function networks.
+    '''
+
+    def __init__(self, n_in: int, n_layers: int, n_hid: int, n_out: int = 1, imitate_grouped_weight_init: bool = True):
+        super().__init__()
+        assert n_layers > 1
+        self.n_in = n_in
+        self.l0 = nn.Linear(n_in, n_hid * 2)
+        self.relu0 = nn.ReLU(inplace=False)
+        self.q1_layers = nn.ModuleList()
+        self.q2_layers = nn.ModuleList()
+        n_hin = n_in + n_hid
+        for _ in range(n_layers - 1):
+            self.q1_layers.append(nn.Linear(n_hin, n_hid))
+            self.q2_layers.append(nn.Linear(n_hin, n_hid))
+        self.q1_lN = nn.Linear(n_hid, n_out)
+        self.q2_lN = nn.Linear(n_hid, n_out)
+        if imitate_grouped_weight_init:
+            # GroupedLinear implementation has effectively lower weight/bias init gain, as fan_in is
+            # multiplied by groups but only 1/groups of input is unmasked per linear.
+            # Bounds are proportional to srqt(1/fan_in) with kaiming init and we want to match lower
+            # gain srqt(1/(fan_in * groups)) = srqt(1/fan_in) * f, so multiply the weights by factor
+            f = 1 / np.sqrt(2)
+            for ln in self.q1_layers + self.q2_layers:
+                ln.weight.detach().mul_(f)
+                ln.bias.detach().mul_(f)
+        th.fill_(self.q1_lN.weight.detach(), 0)
+        th.fill_(self.q1_lN.bias.detach(), 0)
+        th.fill_(self.q2_lN.weight.detach(), 0)
+        th.fill_(self.q2_lN.bias.detach(), 0)
+
+    def forward(self, x):
+        y = self.l0(x)
+        y = self.relu0(y)
+        y1, y2 = y.chunk(2, dim=-1)
+        for l1, l2 in zip(self.q1_layers, self.q2_layers):
+            y1 = l1(th.cat((y1, x), dim=-1))
+            y2 = l2(th.cat((y2, x), dim=-1))
+            y1 = F.relu(y1, inplace=True)
+            y2 = F.relu(y2, inplace=True)
+        y1 = self.q1_lN(y1)
+        y2 = self.q1_lN(y2)
+        return th.cat((y1, y2), dim=-1)
 
 class ExpandTaskSubgoal(nn.Module):
     def __init__(self, space: gym.Space):
@@ -442,7 +487,7 @@ class Factory(metaclass=FactoryType):
                     dict(action=action_space, **obs_space.spaces)
                 )
             ms.append(FlattenSpace(joint_space))
-        ms.append(SkipDoubleQNetwork(n_in=n_in, n_layers=4, n_hid=n_hid))
+        ms.append(SkipDoubleQSepNetwork(n_in=n_in, n_layers=4, n_hid=n_hid))
         return nn.Sequential(*ms)
 
     @staticmethod
@@ -466,7 +511,7 @@ class Factory(metaclass=FactoryType):
         ms.append(ExpandTaskSubgoal(joint_space))
         n_in = gym.spaces.flatdim(ms[0].output_space)
         ms.append(FlattenSpace(ms[0].output_space))
-        ms.append(SkipDoubleQNetwork(n_in=n_in, n_layers=4, n_hid=n_hid))
+        ms.append(SkipDoubleQSepNetwork(n_in=n_in, n_layers=4, n_hid=n_hid))
         return nn.Sequential(*ms)
 
     @staticmethod
