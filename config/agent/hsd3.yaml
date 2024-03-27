@@ -16,6 +16,7 @@ expectation_d: full  # or false, or a number to sample
 action_interval: ???
 dyne_updates: true
 trace: false
+norm_rewards: false
 
 alpha_c: 1.0  # If optim_alpha is not null, this is just the initial alpha value
 target_entropy_factor_c: 1.0 # If optim_alpha is not null

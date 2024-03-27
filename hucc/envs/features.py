@@ -349,7 +349,7 @@ class JointsTaskFrankaFeaturizer(Featurizer):
         super().__init__(None, None)
         self.env = env
         self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(4 * 7,), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(4 * 7 + 1,), dtype=np.float32
         )
         # NOTE: codebase implicitly expects task-specific obs to be last dims of obs,
         # for BPD, the dims which are not in JointsFrankaFeaturizer are already at the end.
@@ -358,7 +358,8 @@ class JointsTaskFrankaFeaturizer(Featurizer):
         # range(n).
 
     def __call__(self) -> np.ndarray:
-        return self.env.unwrapped._get_obs().copy()
+        episode_progress = (self.env.unwrapped._steps / self.env._max_episode_steps) * 2 - 1
+        return np.concatenate([self.env.unwrapped._get_obs(), [episode_progress]])
 
     def feature_names(self) -> List[str]:
         names = [f"qpos{i}" for i in range(7)]

@@ -546,6 +546,17 @@ class HSD3Agent(Agent):
             '_optim_alpha_d',
         )
 
+        self.norm_rewards = cfg.norm_rewards
+        if self.norm_rewards:
+            # for reward normalization. Cant use wrapper directly because
+            # old samples in replay buffer would have different normalization.
+            # Renormalize batch during update 
+            self._ret_rms = gym.wrappers.normalize.RunningMeanStd(shape=())
+            self._ret_exp_mov_avg = np.zeros(env.num_envs)
+            self._ret_exp_gamma = 0.99
+            self._ret_exp_epsilon = 1e-8
+
+
     @staticmethod
     def effective_observation_space(env: gym.Env, cfg: DictConfig):
         iface = HiToLoInterface(env, cfg)
@@ -772,6 +783,12 @@ class HSD3Agent(Agent):
         self._staging.put_row(d)
         self._cur_rewards.append(reward)
 
+        if self.norm_rewards:
+            # update reward normalization (dont apply to reward pushed to buffer)
+            self._ret_exp_mov_avg = self._ret_exp_mov_avg * self._ret_exp_gamma + reward.squeeze().cpu().numpy()
+            self._ret_rms.update(self._ret_exp_mov_avg)
+            self._ret_exp_mov_avg[done.squeeze().cpu().numpy()] = 0
+
         if self._staging.size == self._staging.max:
             self._staging_to_buffer()
 
@@ -983,6 +1000,9 @@ class HSD3Agent(Agent):
                 batch = self._buffer.get_batch_where(
                     self._bsz, indices=indices, device=mdevice
                 )
+            
+            if self.norm_rewards:
+                batch["reward"] = batch["reward"] / np.sqrt(self._ret_rms.var + self._ret_exp_epsilon)
 
             obs = {k: batch[f'obs_{k}'] for k in self._obs_keys}
             alpha_c = self._log_alpha_c.detach().exp()
