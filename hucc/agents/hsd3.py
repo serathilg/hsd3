@@ -1173,6 +1173,10 @@ class HSD3Agent(Agent):
             "HealthHi/EntropyC": -log_prob_c.mean().item(),
             "HealthHi/EntropyD": dist_d.entropy().mean().item(),
         }
+        if self.norm_rewards:
+            reward_scale = np.sqrt(self._ret_rms.var + self._ret_exp_epsilon)
+            self.tbw_add_scalar('LossHi/RewardScale', reward_scale)
+            wandb_data['LossHi/RewardScale'] = reward_scale
         if self._optim_alpha_c:
             self.tbw_add_scalar(
                 'HealthHi/AlphaC', self._log_alpha_c.exp().mean().item()
@@ -1253,4 +1257,6 @@ class HSD3Agent(Agent):
                 f'{self._log_alpha_c.mean().exp().item():.03f},{self._log_alpha_d.exp().item():.03f}',
             ),
         ]
+        if self.norm_rewards:
+            log_stats.append(('rew scale', f'{reward_scale:.03f}'))
         log.info(', '.join((f'{k} {v}' for k, v in log_stats)))
