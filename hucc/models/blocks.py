@@ -196,6 +196,20 @@ class SkipNetwork(nn.Module):
             y = F.relu(y, inplace=True)
         return y
 
+class ReLUNetwork(nn.Module):
+    def __init__(self, n_in: int, n_layers: int, n_hid: int):
+        super().__init__()
+        assert n_layers >= 1
+        self.layers = nn.Sequential()
+        self.layers.append(nn.Linear(n_in, n_hid))
+        self.layers.append(nn.ReLU(inplace=True))
+        for _ in range(n_layers - 1):
+            self.layers.append(nn.Linear(n_hid, n_hid))
+            self.layers.append(nn.ReLU(inplace=True))
+
+    def forward(self, x):
+        return self.layers(x)
+    
 
 class GroupedLinear(nn.Module):
     def __init__(self, inp, outp, groups, bias=True):
@@ -311,6 +325,37 @@ class SkipDoubleQSepNetwork(nn.Module):
         y1 = self.q1_lN(y1)
         y2 = self.q1_lN(y2)
         return th.cat((y1, y2), dim=-1)
+
+class DoubleQSepNetwork(nn.Module):
+    '''
+    Model two Q-function networks.
+    '''
+
+    def __init__(self, n_in: int, n_layers: int, n_hid: int, n_out: int = 1):
+        super().__init__()
+        assert n_layers > 1
+        self.n_in = n_in
+        self.l0 = nn.Linear(n_in, n_hid * 2)
+        self.relu0 = nn.ReLU(inplace=True)
+        self.q1_layers = nn.Sequential()
+        self.q2_layers = nn.Sequential()
+        for _ in range(n_layers - 1):
+            self.q1_layers.append(nn.Linear(n_hid, n_hid))
+            self.q1_layers.append(nn.ReLU(inplace=True))
+            self.q2_layers.append(nn.Linear(n_hid, n_hid))
+            self.q2_layers.append(nn.ReLU(inplace=True))
+        self.q1_layers.append(nn.Linear(n_hid, n_out))
+        self.q2_layers.append(nn.Linear(n_hid, n_out))
+        th.fill_(self.q1_layers[-1].weight.detach(), 0)
+        th.fill_(self.q1_layers[-1].bias.detach(), 0)
+        th.fill_(self.q2_layers[-1].weight.detach(), 0)
+        th.fill_(self.q2_layers[-1].bias.detach(), 0)
+
+    def forward(self, x):
+        y = self.l0(x)
+        y = self.relu0(y)
+        y1, y2 = y.chunk(2, dim=-1)
+        return th.cat((self.q1_layers(y1), self.q2_layers(y2)), dim=-1)
 
 class ExpandTaskSubgoal(nn.Module):
     def __init__(self, space: gym.Space):
@@ -513,6 +558,50 @@ class Factory(metaclass=FactoryType):
         ms.append(FlattenSpace(ms[0].output_space))
         ms.append(SkipDoubleQSepNetwork(n_in=n_in, n_layers=4, n_hid=n_hid))
         return nn.Sequential(*ms)
+    
+    @staticmethod
+    @shorthand('qd_d2rl_flattsg_d_256_2', n_hid=256)
+    def qd_d2rl_flattsg_twolayer(
+        obs_space: gym.Space,
+        action_space: gym.Space,
+        n_hid: int,
+    ) -> nn.Module:
+        ms: List[nn.Module] = []
+        if isinstance(action_space, gym.spaces.Dict):
+            joint_space = gym.spaces.Dict(
+                dict(**action_space.spaces, **obs_space.spaces)
+            )
+        else:
+            joint_space = gym.spaces.Dict(
+                dict(action=action_space, **obs_space.spaces)
+            )
+        ms.append(ExpandTaskSubgoal(joint_space))
+        n_in = gym.spaces.flatdim(ms[0].output_space)
+        ms.append(FlattenSpace(ms[0].output_space))
+        ms.append(SkipDoubleQSepNetwork(n_in=n_in, n_layers=2, n_hid=n_hid))
+        return nn.Sequential(*ms)
+
+    @staticmethod
+    @shorthand('qd_flattsg_d_256_2', n_hid=256)
+    def qd_flattsg_twolayer(
+        obs_space: gym.Space,
+        action_space: gym.Space,
+        n_hid: int,
+    ) -> nn.Module:
+        ms: List[nn.Module] = []
+        if isinstance(action_space, gym.spaces.Dict):
+            joint_space = gym.spaces.Dict(
+                dict(**action_space.spaces, **obs_space.spaces)
+            )
+        else:
+            joint_space = gym.spaces.Dict(
+                dict(action=action_space, **obs_space.spaces)
+            )
+        ms.append(ExpandTaskSubgoal(joint_space))
+        n_in = gym.spaces.flatdim(ms[0].output_space)
+        ms.append(FlattenSpace(ms[0].output_space))
+        ms.append(DoubleQSepNetwork(n_in=n_in, n_layers=2, n_hid=n_hid))
+        return nn.Sequential(*ms)
 
     @staticmethod
     @shorthand('qd_relu_d_3x256', n_layers=3, n_hid=256, flatten_input=True)
@@ -611,6 +700,64 @@ class Factory(metaclass=FactoryType):
         )
         ms.append(TransformDistribution([D.TanhTransform(cache_size=1)]))
         return nn.Sequential(*ms)
+    
+    @staticmethod
+    @shorthand('pi_d2rl_mt_d_256_2', n_hid=256, flatten_input=True)
+    def pi_d2rl_mt_twolayer(
+        obs_space: gym.Space,
+        action_space: gym.Space,
+        n_hid: int,
+        flatten_input: bool,
+    ) -> nn.Module:
+        ms: List[nn.Module] = []
+        spaces = copy(obs_space.spaces)
+        del spaces['task']
+        mobs_space = gym.spaces.Dict(spaces)
+        n_in = gym.spaces.flatdim(mobs_space)
+        n_out = gym.spaces.flatdim(action_space)
+        if flatten_input:
+            ms.append(FlattenSpace(mobs_space))
+        ms.append(SkipNetwork(n_in=n_in, n_layers=2, n_hid=n_hid))
+        ms.append(
+            MHGaussianFromEmbedding(
+                n_in=n_hid,
+                n_out=n_out,
+                n_heads=obs_space.spaces['task'].n,
+                log_std_min=-5,
+                log_std_max=2,
+            )
+        )
+        ms.append(TransformDistribution([D.TanhTransform(cache_size=1)]))
+        return nn.Sequential(*ms)
+
+    @staticmethod
+    @shorthand('pi_mt_d_256_2', n_hid=256, flatten_input=True)
+    def pi_mt_twolayer(
+        obs_space: gym.Space,
+        action_space: gym.Space,
+        n_hid: int,
+        flatten_input: bool,
+    ) -> nn.Module:
+        ms: List[nn.Module] = []
+        spaces = copy(obs_space.spaces)
+        del spaces['task']
+        mobs_space = gym.spaces.Dict(spaces)
+        n_in = gym.spaces.flatdim(mobs_space)
+        n_out = gym.spaces.flatdim(action_space)
+        if flatten_input:
+            ms.append(FlattenSpace(mobs_space))
+        ms.append(ReLUNetwork(n_in=n_in, n_layers=2, n_hid=n_hid))
+        ms.append(
+            MHGaussianFromEmbedding(
+                n_in=n_hid,
+                n_out=n_out,
+                n_heads=obs_space.spaces['task'].n,
+                log_std_min=-5,
+                log_std_max=2,
+            )
+        )
+        ms.append(TransformDistribution([D.TanhTransform(cache_size=1)]))
+        return nn.Sequential(*ms)
 
     @staticmethod
     @shorthand('pi_d2rl_discrete_d_256', n_hid=256, flatten_input=True)
@@ -627,6 +774,40 @@ class Factory(metaclass=FactoryType):
         if flatten_input:
             ms.append(FlattenSpace(obs_space))
         ms.append(SkipNetwork(n_in=n_in, n_layers=4, n_hid=n_hid))
+        ms.append(CategoricalFromEmbedding(n_hid, n_out))
+        return nn.Sequential(*ms)
+    
+    @staticmethod
+    @shorthand('pi_d2rl_discrete_d_256_2', n_hid=256, flatten_input=True)
+    def pi_d2rl_discrete_twolayer(
+        obs_space: gym.Space,
+        action_space: gym.Space,
+        n_hid: int,
+        flatten_input: bool,
+    ) -> nn.Module:
+        ms: List[nn.Module] = []
+        n_in = gym.spaces.flatdim(obs_space)
+        n_out = gym.spaces.flatdim(action_space)
+        if flatten_input:
+            ms.append(FlattenSpace(obs_space))
+        ms.append(SkipNetwork(n_in=n_in, n_layers=2, n_hid=n_hid))
+        ms.append(CategoricalFromEmbedding(n_hid, n_out))
+        return nn.Sequential(*ms)
+
+    @staticmethod
+    @shorthand('pi_discrete_d_256_2', n_hid=256, flatten_input=True)
+    def pi_discrete_twolayer(
+        obs_space: gym.Space,
+        action_space: gym.Space,
+        n_hid: int,
+        flatten_input: bool,
+    ) -> nn.Module:
+        ms: List[nn.Module] = []
+        n_in = gym.spaces.flatdim(obs_space)
+        n_out = gym.spaces.flatdim(action_space)
+        if flatten_input:
+            ms.append(FlattenSpace(obs_space))
+        ms.append(ReLUNetwork(n_in=n_in, n_layers=2, n_hid=n_hid))
         ms.append(CategoricalFromEmbedding(n_hid, n_out))
         return nn.Sequential(*ms)
 
