@@ -25,6 +25,15 @@ register(
 )
 
 register(
+    id="BiskReacher5dSparse-v0",
+    entry_point="hucc.envs.fancy_gym_bisk:FancyGymAsBiskSingleRobotEnv",
+    kwargs={
+        "allow_fallover": True,
+        "task": FancyGymTask.REACHER_SPARSE,
+    },
+)
+
+register(
     id="BiskBoxPushingDense-v0",
     entry_point="hucc.envs.fancy_gym_bisk:FancyGymAsBiskSingleRobotEnv",
     kwargs={
@@ -45,6 +54,20 @@ register(
 register(
     id="FrankaRodSandbox-v0",
     entry_point="hucc.envs.franka_sandbox:FrankaRodSandbox",
+)
+
+register(
+    id="TableTennisSandbox-v0",
+    entry_point="hucc.envs.tabletennis_sandbox:TableTennisSandbox",
+)
+
+register(
+    id="BiskTableTennis4D-v0",
+    entry_point="hucc.envs.fancy_gym_bisk:FancyGymAsBiskSingleRobotEnv",
+    kwargs={
+        "allow_fallover": True,
+        "task": FancyGymTask.TABLE_TENNIS,
+    },
 )
 
 register(

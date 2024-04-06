@@ -45,7 +45,7 @@ class FancyGymCtrlgsPreTrainingEnv(FancyGymAsBiskSingleRobotEnv, CtrlgsPreTraini
         zero_twist_goals: bool = False,
         relative_frame_of_reference: bool = False,
     ):
-        if robot in ("Franka", "Reacher"):
+        if robot in ("Franka", "Reacher", "WAM"):
             self._is_fancy_gym = True
             FancyGymAsBiskSingleRobotEnv.__init__(
                 self,
@@ -93,7 +93,12 @@ class FancyGymCtrlgsPreTrainingEnv(FancyGymAsBiskSingleRobotEnv, CtrlgsPreTraini
             for k, v in task_map.items():
                 self.task_idx[v] = int(k)
 
-            self.proj_pi = np.pi * self.psi[self.goal_space['twist_feats'], self.goal_space['twist_feats']]
+            self.proj_pi = (
+                np.pi
+                * self.psi[
+                    self.goal_space["twist_feats"], self.goal_space["twist_feats"]
+                ]
+            )
 
             if backproject_goal:
                 all_feats = list(range(gsdim))

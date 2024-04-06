@@ -9,15 +9,18 @@ from bisk.features.base import Featurizer
 from gym.utils import seeding
 
 from hucc.envs.features import (
+    FingerPosdeltaVelYawPitchTableTennisFeaturizer,
     FingerPosFrankaFeaturizer,
+    FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
     JointsFrankaFeaturizer,
     JointsReacherFeaturizer,
+    JointsTableTennisFeaturizer,
     JointsTaskFrankaFeaturizer,
     JointsTaskReacherFeaturizer,
+    JointsTaskTableTennisFeaturizer,
     JointValueReacherFeaturizer,
-    JointValueVelReacherFeaturizer,
     JointValueValuedeltaVelFingerPosPosdeltaVelReacherFeaturizer,
-    FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
+    JointValueVelReacherFeaturizer,
 )
 
 log = logging.getLogger(__name__)
@@ -28,6 +31,8 @@ class FancyGymTask(Enum):
     REACHER = auto()
     BOX_PUSH_DENSE = auto()
     BOX_PUSH_TEMPORAL_SPARSE = auto()
+    REACHER_SPARSE = auto()
+    TABLE_TENNIS = auto()
 
 
 class _FGFeature(Enum):
@@ -43,11 +48,13 @@ class _FGFeature(Enum):
     FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ = (
         "fpos_fposd_fvel_feuler_fswitwi_fposboxz"
     )
+    FINGERPOSDELTA_VEL_YAWPITCH = "fposd_fvel_fyawpitch"
 
 
 class _FGRobot(Enum):
     REACHER = "reacher"
     FRANKA = "franka"
+    WAM = "wam"
 
 
 _FANCY_GYM_FEATURIZER = {
@@ -64,6 +71,11 @@ _FANCY_GYM_FEATURIZER = {
         _FGFeature.FINGERPOS: FingerPosFrankaFeaturizer,
         _FGFeature.FINGERPOS_DELTA: FingerPosFrankaFeaturizer,
         _FGFeature.FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ: FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
+    },
+    _FGRobot.WAM: {
+        _FGFeature.JOINTS: JointsTableTennisFeaturizer,
+        _FGFeature.JOINTS_TASK: JointsTaskTableTennisFeaturizer,
+        _FGFeature.FINGERPOSDELTA_VEL_YAWPITCH: FingerPosdeltaVelYawPitchTableTennisFeaturizer,
     },
 }
 
@@ -102,12 +114,18 @@ class FancyGymAsBiskSingleRobotEnv(BiskSingleRobotEnv):
             self.env = fancy_gym.make("Reacher5d-v0", seed=None, max_episode_steps=1e9)
         elif r == _FGRobot.REACHER and task == FancyGymTask.REACHER:
             self.env = fancy_gym.make("Reacher5d-v0", seed=None)
+        elif r == _FGRobot.REACHER and task == FancyGymTask.REACHER_SPARSE:
+            self.env = fancy_gym.make("Reacher5dSparse-v0", seed=None)
         elif r == _FGRobot.FRANKA and task == FancyGymTask.SANDBOX:
             self.env = fancy_gym.make("FrankaRodSandbox-v0", seed=None)
         elif r == _FGRobot.FRANKA and task == FancyGymTask.BOX_PUSH_DENSE:
             self.env = fancy_gym.make("BoxPushingDense-v0", seed=None)
         elif r == _FGRobot.FRANKA and task == FancyGymTask.BOX_PUSH_TEMPORAL_SPARSE:
             self.env = fancy_gym.make("BoxPushingTemporalSparse-v0", seed=None)
+        elif r == _FGRobot.WAM and task == FancyGymTask.SANDBOX:
+            self.env = fancy_gym.make("TableTennisSandbox-v0", seed=None)
+        elif r == _FGRobot.WAM and task == FancyGymTask.TABLE_TENNIS:
+            self.env = fancy_gym.make("TableTennis4D-v0", seed=None)
         else:
             raise NotImplementedError(
                 f"FancyGymAsBiskSingleRobotEnv: {robot=}, {task=}"
@@ -164,6 +182,17 @@ class FancyGymAsBiskSingleRobotEnv(BiskSingleRobotEnv):
             angle_limit = np.any(np.abs(pos) >= 2 * np.pi)
             # hard to control if we spin too fast and need decelerate first when
             # switching goal, the choice of number 3 is arbitrary though
+            vel_limit = np.any(np.abs(vel) >= 3 * np.pi)
+            return bool(angle_limit or vel_limit)
+        if _FGRobot(self.robot) == _FGRobot.WAM:
+            # TODO: arbitrary decisions, maybe suboptimal
+            pos = self.env.unwrapped.data.qpos[:7]
+            vel = self.env.unwrapped.data.qvel[:7]
+            # allow movement above 180 degrees but not full rotation
+            angle_limit = np.any(np.abs(pos) >= 2 * np.pi)
+            # hard to control if we spin too fast and need decelerate first when
+            # switching goal, the choice of number 3 is arbitrary though
+            # (full rotation in 2/3s when full rotation over 1.2s already too much)
             vel_limit = np.any(np.abs(vel) >= 3 * np.pi)
             return bool(angle_limit or vel_limit)
         elif _FGRobot(self.robot) == _FGRobot.FRANKA:

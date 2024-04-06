@@ -299,7 +299,9 @@ class FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer(Featurizer):
         quat = self.env.unwrapped.data.body("push_rod").xquat
         euler_xyz = quat_wxyz_to_extrinsic_euler_xyz(quat)
         swing_twist = quat_wxyz_to_swing_twist_z(quat)
-        return np.concatenate((pos, pos, vel, euler_xyz, swing_twist, pos[2, np.newaxis]))
+        return np.concatenate(
+            (pos, pos, vel, euler_xyz, swing_twist, pos[2, np.newaxis])
+        )
 
     def feature_names(self) -> List[str]:
         xyz = ("x", "y", "z")
@@ -358,7 +360,9 @@ class JointsTaskFrankaFeaturizer(Featurizer):
         # range(n).
 
     def __call__(self) -> np.ndarray:
-        episode_progress = (self.env.unwrapped._steps / self.env._max_episode_steps) * 2 - 1
+        episode_progress = (
+            self.env.unwrapped._steps / self.env._max_episode_steps
+        ) * 2 - 1
         return np.concatenate([self.env.unwrapped._get_obs(), [episode_progress]])
 
     def feature_names(self) -> List[str]:
@@ -371,12 +375,104 @@ class JointsTaskFrankaFeaturizer(Featurizer):
         return names
 
 
+class JointsTableTennisFeaturizer(Featurizer):
+    """Regular proprioceptive observation for TableTennis4D-v0.
+
+    The name 'joints' is misleading but this is the name used by HSD-3 for
+    the non goal-space and task-independent features.
+
+    This only needs to exist for the adaptation of regular (fancy_gym) envs
+    to work."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(None, None)
+        self.env = env
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(2 * 7,), dtype=np.float32
+        )
+        # mask the task-specific dimensions
+        self._obs_proprio = np.array(list(range(0, 14)))
+
+    def __call__(self) -> np.ndarray:
+        return self.env.unwrapped._get_obs()[self._obs_proprio].copy()
+
+    def feature_names(self) -> List[str]:
+        names = [f"qpos{i}" for i in range(7)]
+        names += [f"qvel{i}" for i in range(7)]
+        return names
+
+
+class JointsTaskTableTennisFeaturizer(Featurizer):
+    """Regular task observation for TableTennis4D-v0.
+
+    This only needs to exist for the adaptation of regular (fancy_gym) envs
+    to work."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(None, None)
+        self.env = env
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(2 * 7 + 5,), dtype=np.float32
+        )
+        # NOTE: codebase implicitly expects task-specific obs to be last dims of obs,
+        # for TT, the dims which are not in JointsTableTennisFeaturizer are already at the end.
+        # HiToLoInterface uses obs_mask of (dummy) goal-space pretrain env to create
+        # the low-level policy observation by masking the features; obs_mask is basically
+        # range(n).
+
+    def __call__(self) -> np.ndarray:
+        return self.env.unwrapped._get_obs().copy()
+
+    def feature_names(self) -> List[str]:
+        names = [f"qpos{i}" for i in range(7)]
+        names += [f"qvel{i}" for i in range(7)]
+        names += [f"tar_{i}" for i in ("x", "y", "z")]
+        names += [f"goal_{i}" for i in ("x", "y")]
+        return names
+
+
+class FingerPosdeltaVelYawPitchTableTennisFeaturizer(Featurizer):
+    """Bat center position, velocity, and yaw, pitch (Z,Y of extrinsic ZYX euler) as
+    features for TableTennis-v0."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(None, None)
+        self.env = env
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32
+        )
+
+    def __call__(self) -> np.ndarray:
+        pos = self.env.unwrapped.data.body("EE").xpos
+        vel = self.env.unwrapped.data.body("EE").cvel[-3:]
+        quat = self.env.unwrapped.data.body("EE").xquat
+        # bat x is normal to (red) face, use place yaw putch roll decomp
+        # and ignore roll which is irrelevant rotation of bat surface
+        yaw_pitch = quat_wxyz_to_yaw_pitch(quat)
+        return np.concatenate((pos, vel, yaw_pitch))
+
+    def feature_names(self) -> List[str]:
+        xyz = ("x", "y", "z")
+        names = [f"tip{i}_delta" for i in xyz]
+        names += [f"tip{i}_vel" for i in xyz]
+        names += ["yaw", "pitch"]
+        return names
+
+
 def quat_wxyz_to_extrinsic_euler_xyz(quat: np.ndarray) -> np.ndarray:
     assert quat.ndim in (1, 2)
     assert quat.shape[-1] == 4
     # scipy quat in order x,y,z,w
     q_xyzw = quat[..., [1, 2, 3, 0]]
     return Rotation.from_quat(q_xyzw).as_euler("xyz")
+
+
+def quat_wxyz_to_yaw_pitch(quat: np.ndarray) -> np.ndarray:
+    assert quat.ndim in (1, 2)
+    assert quat.shape[-1] == 4
+    # scipy quat in order x,y,z,w
+    q_xyzw = quat[..., [1, 2, 3, 0]]
+    return Rotation.from_quat(q_xyzw).as_euler("ZYX")[..., :2]
 
 
 def quat_wxyz_to_swing_twist_z(quat: np.ndarray) -> np.ndarray:
@@ -412,10 +508,10 @@ def quat_wxyz_to_swing_twist_z(quat: np.ndarray) -> np.ndarray:
         # if dot negative, then rot_proj_on_twist_dir is opposite direction -> negated angles
         # elementwise negation does not change rotation (as an operation) but flips axis and negates angles
         twist_xyzw = -twist_xyzw
-    
+
     # normalize twist quaternion
     twist_xyzw = twist_xyzw / np.linalg.norm(twist_xyzw)
-    
+
     # we only care about the angle of the twist
     twist_angle = 2 * np.arctan2(np.linalg.norm(twist_xyzw[0:3]), twist_xyzw[3])
 
@@ -427,8 +523,7 @@ def quat_wxyz_to_swing_twist_z(quat: np.ndarray) -> np.ndarray:
     # we only case about the angle of the swing, not the axis (in the xy plane orthogonal to twist)
     swing_angle = 2 * np.arctan2(np.linalg.norm(swing_xyzw[0:3]), swing_xyzw[3])
     # [0, 2pi]
-    return np.array((swing_angle, twist_angle)) 
-
+    return np.array((swing_angle, twist_angle))
 
 
 def bodyfeet_featurizer(p: mujoco.Physics, robot: str, prefix: str, *args, **kwargs):
