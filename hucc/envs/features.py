@@ -264,6 +264,48 @@ class JointsTaskReacherFeaturizer(Featurizer):
         return names
 
 
+class JointsTaskReacherSparseFeaturizer(Featurizer):
+    """Regular task observation for Reacher5dSparse-v0.
+
+    This only needs to exist for the adaptation of regular (fancy_gym) envs
+    to work."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(None, None)
+        self.env = env
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(3 * 5 + 2 + 3 + 1,), dtype=np.float32
+        )
+        # NOTE: codebase implicitly expects task-specific obs to be last dims of obs,
+        # so move the dims which are not in JointsReacherFeaturizer to the end.
+        # HiToLoInterface uses obs_mask of (dummy) goal-space pretrain env to create
+        # the low-level policy observation by masking the features; obs_mask is basically
+        # range(n).
+        self._obs_reorder = np.array(
+            list(range(0, 10))
+            + list(range(12, 17))
+            + list(range(10, 12))
+            + list(range(17, 20))
+        )
+
+    def __call__(self) -> np.ndarray:
+        episode_progress = (
+            self.env.unwrapped._steps / self.env._max_episode_steps
+        ) * 2 - 1
+        return np.concatenate(
+            [self.env.unwrapped._get_obs()[self._obs_reorder], [episode_progress]]
+        )
+
+    def feature_names(self) -> List[str]:
+        names = [f"cos{i}" for i in range(5)]
+        names += [f"sin{i}" for i in range(5)]
+        names += [f"vel{i}" for i in range(5)]
+        names += ["target_x", "target_y"]
+        names += ["dist_x", "dist_y", "dist_z"]
+        names += ["episode_progress"]
+        return names
+
+
 class FingerPosFrankaFeaturizer(Featurizer):
     """Rod tip position as features for BoxPushingDense-v0."""
 

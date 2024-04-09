@@ -17,6 +17,7 @@ from hucc.envs.features import (
     JointsTableTennisFeaturizer,
     JointsTaskFrankaFeaturizer,
     JointsTaskReacherFeaturizer,
+    JointsTaskReacherSparseFeaturizer,
     JointsTaskTableTennisFeaturizer,
     JointValueReacherFeaturizer,
     JointValueValuedeltaVelFingerPosPosdeltaVelReacherFeaturizer,
@@ -59,34 +60,74 @@ class _FGRobot(Enum):
 
 _FANCY_GYM_FEATURIZER = {
     _FGRobot.REACHER: {
-        _FGFeature.JOINTS: JointsReacherFeaturizer,
-        _FGFeature.JOINTS_TASK: JointsTaskReacherFeaturizer,
-        _FGFeature.JOINT_VALUE: JointValueReacherFeaturizer,
-        _FGFeature.JOINT_VALUE_VEL: JointValueVelReacherFeaturizer,
-        _FGFeature.JOINT_VALUE_VALUEDELTA_VEL_FINGERPOS_POSDELTA_VEL: JointValueValuedeltaVelFingerPosPosdeltaVelReacherFeaturizer,
+        FancyGymTask.SANDBOX: {
+            _FGFeature.JOINTS: JointsReacherFeaturizer,
+            _FGFeature.JOINT_VALUE: JointValueReacherFeaturizer,
+            _FGFeature.JOINT_VALUE_VEL: JointValueVelReacherFeaturizer,
+            _FGFeature.JOINT_VALUE_VALUEDELTA_VEL_FINGERPOS_POSDELTA_VEL: JointValueValuedeltaVelFingerPosPosdeltaVelReacherFeaturizer,
+        },
+        FancyGymTask.REACHER: {
+            _FGFeature.JOINTS: JointsReacherFeaturizer,
+            _FGFeature.JOINTS_TASK: JointsTaskReacherFeaturizer,
+            _FGFeature.JOINT_VALUE: JointValueReacherFeaturizer,
+            _FGFeature.JOINT_VALUE_VEL: JointValueVelReacherFeaturizer,
+            _FGFeature.JOINT_VALUE_VALUEDELTA_VEL_FINGERPOS_POSDELTA_VEL: JointValueValuedeltaVelFingerPosPosdeltaVelReacherFeaturizer,
+        },
+        FancyGymTask.REACHER_SPARSE: {
+            _FGFeature.JOINTS: JointsReacherFeaturizer,
+            _FGFeature.JOINTS_TASK: JointsTaskReacherSparseFeaturizer,
+            _FGFeature.JOINT_VALUE: JointValueReacherFeaturizer,
+            _FGFeature.JOINT_VALUE_VEL: JointValueVelReacherFeaturizer,
+            _FGFeature.JOINT_VALUE_VALUEDELTA_VEL_FINGERPOS_POSDELTA_VEL: JointValueValuedeltaVelFingerPosPosdeltaVelReacherFeaturizer,
+        },
     },
     _FGRobot.FRANKA: {
-        _FGFeature.JOINTS: JointsFrankaFeaturizer,
-        _FGFeature.JOINTS_TASK: JointsTaskFrankaFeaturizer,
-        _FGFeature.FINGERPOS: FingerPosFrankaFeaturizer,
-        _FGFeature.FINGERPOS_DELTA: FingerPosFrankaFeaturizer,
-        _FGFeature.FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ: FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
+        FancyGymTask.SANDBOX: {
+            _FGFeature.JOINTS: JointsFrankaFeaturizer,
+            _FGFeature.FINGERPOS: FingerPosFrankaFeaturizer,
+            _FGFeature.FINGERPOS_DELTA: FingerPosFrankaFeaturizer,
+            _FGFeature.FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ: FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
+        },
+        FancyGymTask.BOX_PUSH_DENSE: {
+            _FGFeature.JOINTS: JointsFrankaFeaturizer,
+            _FGFeature.JOINTS_TASK: JointsTaskFrankaFeaturizer,
+            _FGFeature.FINGERPOS: FingerPosFrankaFeaturizer,
+            _FGFeature.FINGERPOS_DELTA: FingerPosFrankaFeaturizer,
+            _FGFeature.FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ: FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
+        },
+        FancyGymTask.BOX_PUSH_TEMPORAL_SPARSE: {
+            _FGFeature.JOINTS: JointsFrankaFeaturizer,
+            _FGFeature.JOINTS_TASK: JointsTaskFrankaFeaturizer,
+            _FGFeature.FINGERPOS: FingerPosFrankaFeaturizer,
+            _FGFeature.FINGERPOS_DELTA: FingerPosFrankaFeaturizer,
+            _FGFeature.FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ: FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
+        },
     },
     _FGRobot.WAM: {
-        _FGFeature.JOINTS: JointsTableTennisFeaturizer,
-        _FGFeature.JOINTS_TASK: JointsTaskTableTennisFeaturizer,
-        _FGFeature.FINGERPOSDELTA_VEL_YAWPITCH: FingerPosdeltaVelYawPitchTableTennisFeaturizer,
+        FancyGymTask.SANDBOX: {
+            _FGFeature.JOINTS: JointsTableTennisFeaturizer,
+            _FGFeature.FINGERPOSDELTA_VEL_YAWPITCH: FingerPosdeltaVelYawPitchTableTennisFeaturizer,
+        },
+        FancyGymTask.TABLE_TENNIS: {
+            _FGFeature.JOINTS: JointsTableTennisFeaturizer,
+            _FGFeature.JOINTS_TASK: JointsTaskTableTennisFeaturizer,
+            _FGFeature.FINGERPOSDELTA_VEL_YAWPITCH: FingerPosdeltaVelYawPitchTableTennisFeaturizer,
+        },
     },
 }
 
 
-def make_fancy_gym_featurizer(features: str, env: gym.Env, robot: str) -> Featurizer:
+def make_fancy_gym_featurizer(
+    features: str, env: gym.Env, robot: str, task: FancyGymTask
+) -> Featurizer:
     f = _FGFeature(features)
     r = _FGRobot(robot)
     try:
-        featurizer = _FANCY_GYM_FEATURIZER[r][f]
+        featurizer = _FANCY_GYM_FEATURIZER[r][task][f]
     except KeyError:
-        raise NotImplementedError(f"make_fancy_gym_featurizer: {features=}, {robot=}")
+        raise NotImplementedError(
+            f"make_fancy_gym_featurizer: {features=}, {task=}, {robot=}"
+        )
     return featurizer(env)
 
 
@@ -132,8 +173,8 @@ class FancyGymAsBiskSingleRobotEnv(BiskSingleRobotEnv):
             )
         self.action_space = self.env.action_space
 
-        # TODO: add task to featurizer selection
-        self.featurizer = make_fancy_gym_featurizer(features, self.env, self.robot)
+        self._task = task
+        self.featurizer = self.make_featurizer(features)
         self.observation_space = self.featurizer.observation_space
         self.seed()
 
@@ -171,7 +212,7 @@ class FancyGymAsBiskSingleRobotEnv(BiskSingleRobotEnv):
         return self.get_observation()
 
     def make_featurizer(self, features: str):
-        return make_fancy_gym_featurizer(features, self.env, self.robot)
+        return make_fancy_gym_featurizer(features, self.env, self.robot, self._task)
 
     def fell_over(self) -> bool:
         if _FGRobot(self.robot) == _FGRobot.REACHER:

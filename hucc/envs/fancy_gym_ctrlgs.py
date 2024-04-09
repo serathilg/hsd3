@@ -57,7 +57,7 @@ class FancyGymCtrlgsPreTrainingEnv(FancyGymAsBiskSingleRobotEnv, CtrlgsPreTraini
 
             # the features here define the goal-spaces
             self.goal_featurizer = make_fancy_gym_featurizer(
-                features, self.env, self.robot
+                features, self.env, self.robot, FancyGymTask.SANDBOX
             )
             ########## identical to regular Ctrlgs from here ##########
             gsdim = self.goal_featurizer.observation_space.shape[0]
