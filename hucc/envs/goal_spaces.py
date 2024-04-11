@@ -200,6 +200,23 @@ g_goal_ranges_fingeryawpitch_tabletennis: List[Tuple] = [
 ]
 
 
+g_goal_ranges_fingervel_delta_tabletennis: List[Tuple] = [
+    # be able to accelerate to vel limits in < 150/2 steps, say 50
+    # 5 / 50 = 0.1 m / s*step, 2 / 50 = 0.04 m / s*step
+    # interval 5 => 0.5, 0.5, 0.2
+    (0, "tipx_vel_delta", -0.5, +0.5),
+    (1, "tipy_vel_delta", -0.5, +0.5),
+    (2, "tipz_vel_delta", -0.2, +0.2),
+]
+
+
+g_goal_ranges_fingeryawpitch_delta_tabletennis: List[Tuple] = [
+    # +- pi in 1.2s => ~3 rad/s, considering acceleration 5 rad/s
+    # 8ms step, interval 5 => 0.2
+    (0, "yaw_delta", -0.2, 0.2),
+    (1, "pitch_delta", -0.2, +0.2),
+]
+
 g_goal_spaces_bodyfeet: Dict[str, Dict[str, List]] = {
     "Walker": def_ranges(g_goal_ranges_bodyfeet_walker, [1]),
     "Humanoid": def_ranges(g_goal_ranges_bodyfeet_humanoid, [0, 1], [3]),
@@ -241,6 +258,16 @@ g_goal_spaces_fingerposdelta_fingervel_fingeryawpitch: Dict[str, Dict[str, List]
     ),
 }
 
+g_goal_spaces_fingerposdelta_fingerveldelta_fingeryawpitchdelta: Dict[str, Dict[str, List]] = {
+    "WAM": def_ranges(
+        g_goal_ranges_fingerpos_delta_tabletennis  # 3 delta
+        + g_goal_ranges_fingervel_delta_tabletennis  # 3 delta
+        + g_goal_ranges_fingeryawpitch_delta_tabletennis,  # 2 delta twist
+        delta_feats=[0, 1, 2, 3, 4, 5, 6, 7],
+        twist_feats=[6, 7],
+    ),
+}
+
 
 g_goal_spaces_joint_value: Dict[str, Dict[str, List]] = {
     "Reacher": def_ranges(g_goal_ranges_joint_value_reacher),
@@ -277,6 +304,7 @@ g_goal_spaces: Dict[str, Dict[str, Dict[str, List]]] = {
     "joint_value_vel": g_goal_spaces_joint_value_vel,
     "jval_jvald_jvel_fpos_fposd_fvel": g_goal_spaces_jointvalue_jointvaluedelta_jointvel_fingerpos_fingerposdelta_fingervel,
     "fposd_fvel_fyawpitch": g_goal_spaces_fingerposdelta_fingervel_fingeryawpitch,
+    "fposd_fveld_fyawpitchd": g_goal_spaces_fingerposdelta_fingerveldelta_fingeryawpitchdelta,
 }
 
 

@@ -50,6 +50,7 @@ class _FGFeature(Enum):
         "fpos_fposd_fvel_feuler_fswitwi_fposboxz"
     )
     FINGERPOSDELTA_VEL_YAWPITCH = "fposd_fvel_fyawpitch"
+    FINGERPOSDELTA_VELDELTA_YAWPITCHDELTA = "fposd_fveld_fyawpitchd"
 
 
 class _FGRobot(Enum):
@@ -107,11 +108,13 @@ _FANCY_GYM_FEATURIZER = {
         FancyGymTask.SANDBOX: {
             _FGFeature.JOINTS: JointsTableTennisFeaturizer,
             _FGFeature.FINGERPOSDELTA_VEL_YAWPITCH: FingerPosdeltaVelYawPitchTableTennisFeaturizer,
+            _FGFeature.FINGERPOSDELTA_VELDELTA_YAWPITCHDELTA: FingerPosdeltaVelYawPitchTableTennisFeaturizer,
         },
         FancyGymTask.TABLE_TENNIS: {
             _FGFeature.JOINTS: JointsTableTennisFeaturizer,
             _FGFeature.JOINTS_TASK: JointsTaskTableTennisFeaturizer,
             _FGFeature.FINGERPOSDELTA_VEL_YAWPITCH: FingerPosdeltaVelYawPitchTableTennisFeaturizer,
+            _FGFeature.FINGERPOSDELTA_VELDELTA_YAWPITCHDELTA: FingerPosdeltaVelYawPitchTableTennisFeaturizer,
         },
     },
 }
