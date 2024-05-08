@@ -14,8 +14,7 @@ The benchmark suite can be found in a standalone repository at
 
 ## Prerequisites
 - `conda env create -f environment.yaml`
-- `pip install 'gym==0.24.1' 'cython<3' patchelf 'fancy_gym[metaworld,dmc] @ git+https://github.com/ALRhub/fancy_gym.git@legacy'`
-- edit fancy_gym reacher in `step` : `done = self.sparse and self._steps == MAX_EPISODE_STEPS_REACHER` and use `# I + II Quadrant self.goal = self.np_random.uniform(low=[-self.n_links / 10, 0], high=self.n_links, size=2)` in `reset_model`
+- `pip install 'gym==0.24.1' 'cython<3' patchelf 'fancy_gym[metaworld,dmc] @ git+https://github.com/serathilg/fancy_gym.git@jmlr_mp3'`
 
 
 Install PyTorch according to the [official

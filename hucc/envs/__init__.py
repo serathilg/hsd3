@@ -52,6 +52,15 @@ register(
 )
 
 register(
+    id="BiskBoxPushingGoalSwitchDense-v0",
+    entry_point="hucc.envs.fancy_gym_bisk:FancyGymAsBiskSingleRobotEnv",
+    kwargs={
+        "allow_fallover": True,
+        "task": FancyGymTask.BOX_PUSH_GOAL_SWITCH_DENSE,
+    },
+)
+
+register(
     id="FrankaRodSandbox-v0",
     entry_point="hucc.envs.franka_sandbox:FrankaRodSandbox",
 )

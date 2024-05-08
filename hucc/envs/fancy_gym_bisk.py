@@ -34,6 +34,7 @@ class FancyGymTask(Enum):
     BOX_PUSH_TEMPORAL_SPARSE = auto()
     REACHER_SPARSE = auto()
     TABLE_TENNIS = auto()
+    BOX_PUSH_GOAL_SWITCH_DENSE = auto()
 
 
 class _FGFeature(Enum):
@@ -103,6 +104,13 @@ _FANCY_GYM_FEATURIZER = {
             _FGFeature.FINGERPOS_DELTA: FingerPosFrankaFeaturizer,
             _FGFeature.FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ: FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
         },
+        FancyGymTask.BOX_PUSH_GOAL_SWITCH_DENSE: {
+            _FGFeature.JOINTS: JointsFrankaFeaturizer,
+            _FGFeature.JOINTS_TASK: JointsTaskFrankaFeaturizer,
+            _FGFeature.FINGERPOS: FingerPosFrankaFeaturizer,
+            _FGFeature.FINGERPOS_DELTA: FingerPosFrankaFeaturizer,
+            _FGFeature.FINGERPOS_POSDELTA_VEL_EULER_SWINGTWIST_POSBOXZ: FingerPosPosdeltaVelEulerSwingTwistPosboxzFrankaFeaturizer,
+        },
     },
     _FGRobot.WAM: {
         FancyGymTask.SANDBOX: {
@@ -166,6 +174,8 @@ class FancyGymAsBiskSingleRobotEnv(BiskSingleRobotEnv):
             self.env = fancy_gym.make("BoxPushingDense-v0", seed=None)
         elif r == _FGRobot.FRANKA and task == FancyGymTask.BOX_PUSH_TEMPORAL_SPARSE:
             self.env = fancy_gym.make("BoxPushingTemporalSparse-v0", seed=None)
+        elif r == _FGRobot.FRANKA and task == FancyGymTask.BOX_PUSH_GOAL_SWITCH_DENSE:
+            self.env = fancy_gym.make("BoxPushingGoalSwitchDense-v0", seed=None)
         elif r == _FGRobot.WAM and task == FancyGymTask.SANDBOX:
             self.env = fancy_gym.make("TableTennisSandbox-v0", seed=None)
         elif r == _FGRobot.WAM and task == FancyGymTask.TABLE_TENNIS:

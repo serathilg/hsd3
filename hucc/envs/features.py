@@ -285,16 +285,11 @@ class JointsTaskReacherSparseFeaturizer(Featurizer):
             list(range(0, 10))
             + list(range(12, 17))
             + list(range(10, 12))
-            + list(range(17, 20))
+            + list(range(17, 21))
         )
 
     def __call__(self) -> np.ndarray:
-        episode_progress = (
-            self.env.unwrapped._steps / self.env._max_episode_steps
-        ) * 2 - 1
-        return np.concatenate(
-            [self.env.unwrapped._get_obs()[self._obs_reorder], [episode_progress]]
-        )
+        return self.env.unwrapped._get_obs()[self._obs_reorder]
 
     def feature_names(self) -> List[str]:
         names = [f"cos{i}" for i in range(5)]
@@ -402,10 +397,7 @@ class JointsTaskFrankaFeaturizer(Featurizer):
         # range(n).
 
     def __call__(self) -> np.ndarray:
-        episode_progress = (
-            self.env.unwrapped._steps / self.env._max_episode_steps
-        ) * 2 - 1
-        return np.concatenate([self.env.unwrapped._get_obs(), [episode_progress]])
+        return self.env.unwrapped._get_obs().copy()
 
     def feature_names(self) -> List[str]:
         names = [f"qpos{i}" for i in range(7)]
@@ -414,6 +406,7 @@ class JointsTaskFrankaFeaturizer(Featurizer):
         names += [f"box_0_quat{i}" for i in ("w", "x", "y", "z")]
         names += [f"replan_target_pos{i}" for i in ("x", "y", "z")]
         names += [f"replan_target_quat{i}" for i in ("w", "x", "y", "z")]
+        names += ["episode_progress"]
         return names
 
 
